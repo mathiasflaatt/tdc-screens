@@ -1,5 +1,7 @@
 // @ts-check
 
+import { parseSessionInstant } from '../src/lib/time.js';
+
 const GRIDSMART_URL = 'https://sessionize.com/api/v2/1diujeu9/view/GridSmart?under=True';
 const SESSIONS_URL = 'https://sessionize.com/api/v2/1diujeu9/view/Sessions?under=True';
 const SPEAKERS_URL = 'https://sessionize.com/api/v2/1diujeu9/view/Speakers?under=True';
@@ -91,7 +93,12 @@ export function normaliseSessionizeFeeds(feeds, fetchedAt = new Date()) {
         const endsAt = asText(gridSession.endsAt);
         const detail = detailsById.get(id);
         const title = (detail && asText(detail.title)) || asText(gridSession.title);
-        if (!id || !title || !startsAt || !endsAt) continue;
+        if (!id || !title) continue;
+        const start = parseSessionInstant(startsAt);
+        const end = parseSessionInstant(endsAt);
+        if (start === null || end === null || end <= start) {
+          throw new Error(`Sessionize GridSmart session ${id} had an invalid time range`);
+        }
 
         /** @type {unknown[]} */
         const speakerRefs = detail && Array.isArray(detail.speakers)

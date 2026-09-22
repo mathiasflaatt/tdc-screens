@@ -31,6 +31,7 @@ const schedule = {
     },
   ],
 };
+const scheduleCacheKey = 'tdc-2026-schedule-v1';
 
 test.beforeEach(async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-19T08:15:00.000Z') });
@@ -82,4 +83,30 @@ test('shows a readable state when the first schedule request fails', async ({ pa
 
   await expect(page.getByRole('heading', { name: /schedule unavailable/i })).toBeVisible();
   await expect(page.getByText(/trying again automatically/i)).toBeVisible();
+});
+
+test('keeps the cached schedule when a refresh contains invalid timestamps', async ({ page }) => {
+  const invalidSchedule = {
+    ...schedule,
+    sessions: schedule.sessions.map((session, index) => index === 0 ? ({
+      ...session,
+      startsAt: 'not-a-date',
+      endsAt: 'also-not-a-date',
+    }) : session),
+  };
+
+  await page.unroute('**/api/schedule*');
+  await page.addInitScript(({ key, snapshot }) => {
+    window.localStorage.setItem(key, JSON.stringify(snapshot));
+  }, { key: scheduleCacheKey, snapshot: schedule });
+  await page.route('**/api/schedule*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(invalidSchedule) }),
+  );
+
+  await page.goto('/room/42');
+
+  await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toBeVisible();
+  await expect(page.getByText('Schedule may be out of date')).toBeVisible();
+  await expect(page.getByText('Happening now')).toBeVisible();
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), scheduleCacheKey)).toBe(JSON.stringify(schedule));
 });

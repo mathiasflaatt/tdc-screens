@@ -84,4 +84,22 @@ test('builds the same-origin schedule from the fixed Sessionize feeds and ignore
       isPlenumSession: false,
     },
   ]);
+
+  const malformedGridSmart = structuredClone(gridSmart);
+  malformedGridSmart[0].rooms[0].sessions[0].startsAt = 'not-a-date';
+  malformedGridSmart[0].rooms[0].sessions.push({
+    id: 'valid-talk',
+    title: 'Still valid talk',
+    startsAt: '2026-10-19T11:00:00',
+    endsAt: '2026-10-19T11:40:00',
+    isServiceSession: false,
+    isPlenumSession: false,
+    speakers: [],
+  });
+  responses.set('https://sessionize.com/api/v2/1diujeu9/view/GridSmart?under=True', malformedGridSmart);
+
+  await handler({ method: 'GET', url: '/api/schedule' }, response);
+
+  expect(response.statusCode).toBe(502);
+  expect(response.body).toEqual({ error: 'Schedule unavailable' });
 });
