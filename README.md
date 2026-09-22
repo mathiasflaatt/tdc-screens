@@ -1,8 +1,12 @@
 # TDC conference displays
 
-The home page lists the available room displays. Each room has a permanent link at `/room/<sessionize-room-id>`, so a TV can be configured once and reloaded directly.
+The home page lists the available room displays. Each room has a permanent URL at `/room/<sessionize-room-id>`; use the link shown on the selector page when configuring a TV. The room ID is the stable ID from the conference schedule.
 
-The display reads the TDC 2026 Sessionize GridSmart, Sessions, and Speakers feeds through the same-origin `/api/schedule` endpoint. GridSmart supplies the room IDs and scheduled times; the other feeds enrich titles and speaker names. The server endpoint uses only the fixed TDC feed URLs.
+## Schedule data
+
+The browser reads the same-origin `/api/schedule` endpoint. It uses the fixed TDC 2026 Sessionize feed URLs: GridSmart is the source for rooms and scheduled times, while Sessions and Speakers add titles and speaker names when available. The endpoint does not accept an upstream URL from the request. GridSmart is required; if it is unavailable or invalid, the endpoint returns an error. The browser keeps the last valid schedule in local storage and marks it as possibly out of date if a refresh fails.
+
+Each display requests the schedule on startup and every five minutes. The Oslo clock and session state update every second between requests. The API fetches the three feeds concurrently, with a 10-second timeout per upstream request, and sends `no-store` cache headers.
 
 ## Run locally
 
@@ -11,7 +15,7 @@ npm install
 npm run dev
 ```
 
-Open the local address printed by Vite to choose a room. The schedule refreshes every five minutes, while session highlighting and the clock update every second. If a refresh fails, the last successful schedule remains on screen and is marked as possibly out of date.
+Open the local address printed by Vite to choose a room. Vite serves the same `/api/schedule` handler used by the deployment.
 
 ## Verify
 
@@ -21,10 +25,12 @@ npm test
 npm run test:api
 ```
 
-The browser suite uses controlled schedule responses and a frozen clock in an America/Los_Angeles browser context to check room selection, direct links, Oslo time, live-session transitions, unknown rooms, and a first-load failure. Install the matching Playwright Chromium with `npx playwright install chromium`; a preinstalled Chromium can be selected with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.
+The browser tests use controlled schedule responses and a frozen clock in an `America/Los_Angeles` browser context. They cover room selection and direct links, Oslo time, session changes, unknown rooms, and schedule-loading failures. Install Playwright's Chromium with `npx playwright install chromium`. To use an existing Chrome or Chromium installation, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its executable path before running `npm test`.
 
-## Deploy
+## Deploy to Vercel
 
-Import the repository into Vercel. `vercel.json` configures the static build output, the `/api/schedule` serverless function, and direct room URL rewrites. No database or environment secrets are required.
+Import this repository as a Vercel project. The project settings in `vercel.json` run `npm run build`, serve the `dist` output, and rewrite `/room/<id>` to the single-page app. Vercel discovers the `/api/schedule` function from `api/schedule.js`. No database, environment variables, or scheduled job are needed.
 
-The visual direction follows the [TDC 2026 website](https://2026.trondheimdc.no/#coc): near-black surfaces, mint accents, a yellow highlight, and strong readable type.
+Every active screen polls the function every five minutes; the function calls Sessionize for each request and is not backed by a server cache. Estimate about 12 function invocations per active screen per hour, plus initial loads and retries. Vercel currently lists 1,000,000 monthly function invocations on Hobby, which is limited to personal, non-commercial use. A conference deployment may not qualify, so check the current [Hobby plan terms and usage](https://vercel.com/docs/plans/hobby) and [Function limits](https://vercel.com/docs/functions/limitations) for the account and deployment before choosing a plan. The function's upstream timeout is 10 seconds; Vercel's maximum function duration depends on plan and compute settings.
+
+The visual direction follows the [TDC 2026 website](https://2026.trondheimdc.no/#coc): near-black surfaces, mint accents, a yellow highlight, and readable type.
