@@ -8,7 +8,10 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "playwright test",
-    "test:api": "playwright test tests/api.spec.ts"
+    "test:api": "playwright test --project=behavior tests/api.spec.ts",
+    "preview:production": "npm run build && node scripts/serve-production.mjs",
+    "test:production": "playwright test --project=production",
+    "smoke:sessionize": "node scripts/sessionize-smoke.mjs"
   },
   "dependencies": {
     "react": "19.3.0",
