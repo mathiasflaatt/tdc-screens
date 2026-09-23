@@ -151,7 +151,7 @@ test('shows before-event, finished-room, and complete-program states', async ({ 
   await page.goto('/common');
   await expect(page.getByText('Starts later')).toHaveCount(6);
   await expect(page.getByRole('article', { name: 'Room A' }).getByText('10:00', { exact: true })).toBeVisible();
-  await expect(page.getByRole('article', { name: 'Room A' }).getByText('Monday, 19 October 2026')).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Room A' }).getByText('Monday, 19 October 2026')).toHaveCount(0);
 
   await page.clock.setFixedTime(new Date('2026-10-19T08:15:00.000Z'));
   await page.reload();

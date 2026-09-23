@@ -1,9 +1,7 @@
 import {
-  formatOsloDate,
   formatSessionRange,
   formatSessionStart,
   getCommonDisplayState,
-  parseSessionInstant,
   type CommonNotice,
   type CommonRoomDisplay,
   type ScheduleSnapshot,
@@ -69,9 +67,6 @@ function NextCard({ display }: { display: CommonRoomDisplay }) {
         <time dateTime={session.startsAt}>{formatSessionStart(session)}</time>
       </p>
       <h3 className="column-card-title">{session.title}</h3>
-      {display.phase === 'before' && (
-        <p className="column-card-date">{formatOsloDate(parseSessionInstant(session.startsAt) ?? Date.now())}</p>
-      )}
       {featured && <SpeakerList speakers={session.speakers} />}
     </div>
   );

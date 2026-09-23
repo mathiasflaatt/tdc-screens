@@ -1,12 +1,10 @@
 import { useRef } from 'react';
 import {
-  formatOsloDate,
   formatSessionRange,
   formatSessionStart,
   getCommonDisplayState,
   getRoomAgenda,
   getRoomDisplayState,
-  parseSessionInstant,
   type CommonRoomDisplay,
   type DisplayRoom,
   type DisplaySession,
@@ -55,9 +53,6 @@ function FeaturedSession({ session, phase }: { session: DisplaySession; phase: S
       </div>
       <h2 className="featured-title">{session.title}</h2>
       <SessionTags session={session} />
-      {phase === 'before' && (
-        <p className="featured-date">{formatOsloDate(parseSessionInstant(session.startsAt) ?? Date.now())}</p>
-      )}
       <SpeakerList speakers={session.speakers} />
     </article>
   );
@@ -109,8 +104,8 @@ function ElsewhereRow({ display }: { display: CommonRoomDisplay }) {
   return (
     <li className={`elsewhere-row${display.current ? ' elsewhere-row--live' : ''}`}>
       <span className="elsewhere-room">{display.room.name}</span>
-      <span className="elsewhere-status">{label}</span>
-      <span className="elsewhere-title">{session?.title ?? 'No more talks'}</span>
+      <span className={session ? 'elsewhere-status' : 'elsewhere-status elsewhere-status--done'}>{label}</span>
+      {session && <span className="elsewhere-title">{session.title}</span>}
     </li>
   );
 }
