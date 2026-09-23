@@ -236,6 +236,23 @@ export function getRoomAgenda(
     .map(({ session }) => session);
 }
 
+export type SharedBreak = {
+  /** Start instant of the break; identical on every screen, so it doubles as the break's key. */
+  start: number;
+  kind: 'break' | 'lunch';
+};
+
+/** The shared break or lunch happening now, if any; the earliest-starting one wins if they overlap. */
+export function getSharedBreak(snapshot: ScheduleSnapshot, now: number): SharedBreak | null {
+  for (const { session, start, end } of timedSessions(snapshot)) {
+    const context = contextForService(session);
+    if ((context?.type === 'break' || context?.type === 'lunch') && start <= now && now < end) {
+      return { start, kind: context.type };
+    }
+  }
+  return null;
+}
+
 function activeCommonNotices(allSessions: TimedSession[], now: number): CommonNotice[] {
   const active = allSessions.filter(({ start, end }) => start <= now && now < end);
   const byType = (type: 'break' | 'lunch') =>

@@ -15,7 +15,9 @@ import {
   type ScheduleSnapshot,
 } from '../lib/schedule';
 import { DuckActor } from './duck/DuckActor';
+import { IdleDuck } from './duck/IdleDuck';
 import { useDuckTransition } from './duck/useDuckTransition';
+import { idleBreakFor, useIdleDuck } from './duck/useIdleDuck';
 import { KioskCanvas, KioskHeader, ROOM_CANVAS, SpeakerList } from './kiosk';
 import { SimulationControls } from './SimulationControls';
 import type { SimulationClock } from '../hooks/useSimulationClock';
@@ -77,15 +79,10 @@ function EmptyRoom({ phase }: { phase: keyof typeof EMPTY_COPY }) {
   );
 }
 
-function ContextNotice({ context }: { context: RoomContext }) {
-  if (context.type === 'plenary') {
-    return <p className="room-context room-context--plenary" role="status">Plenary session in <strong>{context.room}</strong></p>;
-  }
-  return (
-    <p className={`room-context room-context--${context.type}`} role="status">
-      {context.type === 'lunch' ? 'Shared lunch' : 'Shared break'}
-    </p>
-  );
+/** Only plenaries get a notice: they send people elsewhere. Breaks and lunch are the duck's business. */
+function PlenaryNotice({ context }: { context: RoomContext }) {
+  if (context.type !== 'plenary') return null;
+  return <p className="room-context" role="status">Plenary session in <strong>{context.room}</strong></p>;
 }
 
 function RoomAgenda({ sessions }: { sessions: DisplaySession[] }) {
@@ -144,7 +141,7 @@ function RoomSchedule({ snapshot, roomId, display, now }: RoomScheduleProps) {
   return (
     <>
       <div className="featured">
-        {display.context && <ContextNotice context={display.context} />}
+        {display.context && <PlenaryNotice context={display.context} />}
         {display.session && sessionPhase
           ? <FeaturedSession session={display.session} phase={sessionPhase} />
           : <EmptyRoom phase={display.phase === 'empty' || display.phase === 'complete' ? display.phase : 'ended'} />}
@@ -163,6 +160,7 @@ export function RoomDisplay({ snapshot, room, stale, simulation }: RoomDisplayPr
   const now = simulation.now;
   const display = getRoomDisplayState(snapshot, room.id, now);
   const duckRun = useDuckTransition(display, now, snapshot, simulation.jumps);
+  const idleVisit = useIdleDuck(idleBreakFor(snapshot, room.id, now), duckRun !== null);
   const stageRef = useRef<HTMLElement>(null);
   // Until the duck swaps the cards, keep showing the room as it was just before the boundary.
   const shown = duckRun?.stage === 'outgoing' ? duckRun.outgoing : { display, now };
@@ -172,9 +170,15 @@ export function RoomDisplay({ snapshot, room, stale, simulation }: RoomDisplayPr
     <KioskCanvas {...ROOM_CANVAS} className="display-page room-canvas" label={`${room.name} room display`}>
       <KioskHeader now={now} stale={stale} />
       <h1 className="room-name">{room.name}</h1>
-      <section ref={stageRef} className="room-body" aria-label={`Live schedule for ${room.name}`}>
+      <section
+        ref={stageRef}
+        className="room-body"
+        aria-label={`Live schedule for ${room.name}`}
+        data-room-context={shown.display.context?.type}
+      >
         <RoomSchedule snapshot={snapshot} roomId={room.id} display={shown.display} now={shown.now} />
         {duckRun && <DuckActor key={duckRun.id} run={duckRun} stageRef={stageRef} />}
+        {idleVisit && <IdleDuck key={idleVisit.id} visit={idleVisit} stageRef={stageRef} />}
       </section>
       {display.phase !== 'complete' && <ElsewhereNow rooms={elsewhere} />}
       <SimulationControls

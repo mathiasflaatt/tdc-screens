@@ -94,6 +94,92 @@
   100% { opacity: 0; transform: rotate(var(--sparkle-turn)) translateX(190px); }
 }
 
+/* Idle visits: the duck perches on the featured card with a prop held in front of its beak. */
+.duck-prop {
+  position: absolute;
+  bottom: 0;
+  left: calc(100% - 8px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.duck-prop svg { display: block; }
+.duck-prop--coffee .duck-prop__art { width: 70px; height: 70px; }
+.duck-prop--book .duck-prop__art { width: 108px; height: 63px; }
+.duck-prop--eat .duck-prop__food { width: 108px; height: 36px; }
+.duck-prop--eat .duck-prop__plate { width: 108px; height: 18px; }
+
+/* Coffee: steam rises from the mug; every few seconds the duck leans back and takes a sip. */
+.duck-prop__steam {
+  width: 10px;
+  height: 10px;
+  background: rgb(244 241 232 / 0.6);
+  box-shadow: 16px -18px 0 rgb(244 241 232 / 0.4), -6px -36px 0 rgb(244 241 232 / 0.25);
+  animation: duck-steam 1.2s steps(3, end) infinite;
+}
+.duck-actor[data-pose="activity"][data-activity="coffee"] .duck-actor__body { animation: duck-sip-lean 3.2s steps(1, end) infinite; }
+.duck-actor[data-pose="activity"][data-activity="coffee"] .duck-prop { animation: duck-sip-mug 3.2s steps(1, end) infinite; }
+
+@keyframes duck-steam {
+  0% { opacity: 0.2; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-10px); }
+  100% { opacity: 0; transform: translateY(-20px); }
+}
+@keyframes duck-sip-lean {
+  0%, 60% { transform: rotate(0deg); }
+  70%, 90% { transform: rotate(-12deg); }
+}
+@keyframes duck-sip-mug {
+  0%, 60% { transform: none; }
+  70%, 90% { transform: translate(-40px, -52px) rotate(-35deg); }
+}
+
+/* Book: the duck nods along while the pages flip. */
+.duck-actor[data-pose="activity"][data-activity="book"] .duck-actor__body { animation: duck-read 2.4s steps(1, end) infinite; }
+.duck-actor[data-pose="activity"][data-activity="book"] .duck-prop__art { animation: duck-page-flip 2.4s steps(1, end) infinite; }
+@keyframes duck-read {
+  0% { transform: rotate(6deg); }
+  50% { transform: rotate(12deg) translateY(4px); }
+}
+@keyframes duck-page-flip {
+  0%, 85% { transform: none; }
+  90% { transform: scaleX(-1); }
+}
+
+/* Nap: eye closed, slow breathing, floating Zs. */
+.duck-actor[data-pose="activity"][data-activity="nap"] .pixel-duck__eye { fill: #EB7924; }
+.duck-actor[data-pose="activity"][data-activity="nap"] .duck-actor__body { animation: duck-breathe 2.6s ease-in-out infinite; }
+.duck-prop--nap { bottom: 60%; left: 40%; flex-direction: row; align-items: flex-end; gap: 6px; }
+/* Letters must not mirror with the duck. */
+.duck-actor[data-facing="left"] .duck-prop--nap { transform: scaleX(-1); }
+.duck-prop--nap span {
+  color: #FFDA58;
+  font-family: var(--font-family-mono);
+  font-size: var(--kiosk-text-sm);
+  font-weight: var(--font-weight-bold);
+  opacity: 0;
+}
+.duck-prop--nap span:nth-child(2) { font-size: var(--kiosk-text-md); animation-delay: 0.6s !important; }
+.duck-prop--nap span:nth-child(3) { font-size: var(--kiosk-text-lg); animation-delay: 1.2s !important; }
+.duck-actor[data-pose="activity"] .duck-prop--nap span { animation: duck-snore 2.6s steps(4, end) infinite; }
+@keyframes duck-breathe {
+  0%, 100% { transform: rotate(-4deg) scaleY(1); }
+  50% { transform: rotate(-4deg) scaleY(0.94); }
+}
+@keyframes duck-snore {
+  0% { opacity: 0; transform: translateY(0); }
+  30%, 70% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-48px); }
+}
+
+/* Lunch: peck, peck, and the sandwich disappears a bite at a time. */
+.duck-actor[data-pose="activity"][data-activity="eat"] .duck-actor__body { animation: duck-peck 700ms steps(1, end) infinite; }
+.duck-actor[data-pose="activity"][data-activity="eat"] .duck-prop__food { animation: duck-bites 12s steps(5, end) forwards; }
+@keyframes duck-bites {
+  from { clip-path: inset(0 0 0 0); }
+  to { clip-path: inset(0 0 0 100%); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .duck-actor, .duck-sparkles { display: none; }
 }

@@ -72,8 +72,7 @@
   font-size: var(--kiosk-text-md);
   font-weight: var(--font-weight-bold);
 }
-.room-context { color: var(--color-fg-brand); letter-spacing: var(--letter-spacing-wide); text-transform: uppercase; }
-.room-context--plenary { color: var(--color-fg-accent); text-transform: none; }
+.room-context { color: var(--color-fg-accent); }
 .next-start { color: var(--color-fg-accent); }
 
 .room-agenda { flex: 0 0 auto; }

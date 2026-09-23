@@ -1,14 +1,16 @@
+import {
+  DUCK_SIZE,
+  Timeline,
+  measure,
+  moveDuck,
+  offscreenLeft,
+  offscreenRight,
+  setPose,
+  type Box,
+  type Point,
+  type Waypoint,
+} from './stagecraft';
 import type { DuckRun } from './useDuckTransition';
-
-/** Rendered duck size in canvas pixels: 12 mascot pixels × 11. */
-export const DUCK_SIZE = 132;
-
-type Box = { x: number; y: number; w: number; h: number };
-type Point = { x: number; y: number };
-type Pose = 'walk' | 'push' | 'peck' | 'idle';
-type Facing = 'left' | 'right';
-/** A duck waypoint: arrive at `at` ms after the segment starts. */
-type Waypoint = Point & { at: number; easing?: string };
 
 export type SceneElements = {
   /** `.room-body`; every coordinate is relative to it, in unscaled canvas pixels. */
@@ -20,63 +22,9 @@ export type SceneElements = {
 /** What the outgoing segment leaves behind for the incoming one. */
 export type SceneMemory = { duck?: Point; row?: Box | null };
 
-/** How far past the stage edge the duck parks off screen; the kiosk canvas clips it. */
-const OFFSCREEN_MARGIN = 24;
 const PUSH_DISTANCE = 260;
 const HOP_HEIGHT = 140;
-const WALK_EASE = 'linear';
 const LIFT_EASE = 'cubic-bezier(0.2, 0.9, 0.3, 1.15)';
-
-class Timeline {
-  private readonly animations: Animation[] = [];
-  private readonly timers: number[] = [];
-
-  animate(element: Element | null, keyframes: Keyframe[], options: KeyframeAnimationOptions): void {
-    if (!element) return;
-    this.animations.push(element.animate(keyframes, { fill: 'both', ...options }));
-  }
-
-  at(ms: number, action: () => void): void {
-    this.timers.push(window.setTimeout(action, ms));
-  }
-
-  stop(): void {
-    this.timers.forEach((timer) => window.clearTimeout(timer));
-    this.animations.forEach((animation) => animation.cancel());
-  }
-}
-
-function measure(element: Element, stage: HTMLElement): Box {
-  const stageRect = stage.getBoundingClientRect();
-  // The kiosk canvas is CSS-scaled to the TV; convert back to canvas pixels.
-  const scale = stageRect.width / stage.offsetWidth || 1;
-  const rect = element.getBoundingClientRect();
-  return {
-    x: (rect.left - stageRect.left) / scale,
-    y: (rect.top - stageRect.top) / scale,
-    w: rect.width / scale,
-    h: rect.height / scale,
-  };
-}
-
-function moveDuck(timeline: Timeline, duck: HTMLElement, from: Point, waypoints: Waypoint[]): void {
-  const duration = waypoints[waypoints.length - 1].at;
-  const frames: Keyframe[] = [
-    { transform: `translate(${from.x}px, ${from.y}px)`, offset: 0, easing: waypoints[0]?.easing ?? WALK_EASE },
-    ...waypoints.map((point, index) => ({
-      transform: `translate(${point.x}px, ${point.y}px)`,
-      offset: point.at / duration,
-      easing: waypoints[index + 1]?.easing ?? WALK_EASE,
-    })),
-  ];
-  timeline.animate(duck, frames, { duration });
-}
-
-function setPose(duck: HTMLElement, pose: Pose, facing: Facing, quack = false): void {
-  duck.dataset.pose = pose;
-  duck.dataset.facing = facing;
-  duck.dataset.quack = String(quack);
-}
 
 function hopWaypoints(from: Point, to: Point, start: number, duration: number): Waypoint[] {
   return [
@@ -91,8 +39,8 @@ function pushOff(timeline: Timeline, scene: SceneElements, memory: SceneMemory, 
   const card = stage.querySelector('.featured-card');
   if (!card) return;
   const box = measure(card, stage);
-  const offLeft = -DUCK_SIZE - stage.offsetLeft - OFFSCREEN_MARGIN;
-  const offRight = stage.offsetWidth + stage.offsetLeft + OFFSCREEN_MARGIN;
+  const offLeft = offscreenLeft(stage);
+  const offRight = offscreenRight(stage);
   const y = box.y + box.h / 2 - DUCK_SIZE / 2;
   const contactX = box.x - DUCK_SIZE + 16;
   const shoved: Point = { x: contactX + PUSH_DISTANCE, y };
@@ -138,7 +86,7 @@ function pushOff(timeline: Timeline, scene: SceneElements, memory: SceneMemory, 
 function pullUp(timeline: Timeline, scene: SceneElements, memory: SceneMemory): void {
   const { stage, duck } = scene;
   const card = stage.querySelector('.featured-card');
-  const offRight = stage.offsetWidth + stage.offsetLeft + OFFSCREEN_MARGIN;
+  const offRight = offscreenRight(stage);
   const from = memory.duck ?? { x: offRight, y: 0 };
   if (!card) {
     exitRight(timeline, duck, from, 0, offRight);
@@ -187,7 +135,7 @@ function peckPill(timeline: Timeline, scene: SceneElements, memory: SceneMemory)
   const pill = stage.querySelector('.status-pill');
   if (!pill) return;
   const box = measure(pill, stage);
-  const offRight = stage.offsetWidth + stage.offsetLeft + OFFSCREEN_MARGIN;
+  const offRight = offscreenRight(stage);
   const beside: Point = { x: box.x + box.w - 10, y: box.y + box.h - DUCK_SIZE + 18 };
   memory.duck = beside;
   moveDuck(timeline, duck, { x: offRight, y: beside.y }, [{ ...beside, at: 1_100 }]);
@@ -199,7 +147,7 @@ function peckPill(timeline: Timeline, scene: SceneElements, memory: SceneMemory)
 function celebrateLive(timeline: Timeline, scene: SceneElements, memory: SceneMemory): void {
   const { stage, duck, sparkles } = scene;
   const pill = stage.querySelector('.status-pill');
-  const offRight = stage.offsetWidth + stage.offsetLeft + OFFSCREEN_MARGIN;
+  const offRight = offscreenRight(stage);
   const from = memory.duck ?? { x: offRight, y: 0 };
   if (pill) {
     const box = measure(pill, stage);
@@ -218,7 +166,7 @@ function celebrateLive(timeline: Timeline, scene: SceneElements, memory: SceneMe
 
 function fadeInEmpty(timeline: Timeline, scene: SceneElements, memory: SceneMemory): void {
   const { stage, duck } = scene;
-  const offRight = stage.offsetWidth + stage.offsetLeft + OFFSCREEN_MARGIN;
+  const offRight = offscreenRight(stage);
   timeline.animate(stage.querySelector('.featured-card'), [
     { transform: 'scale(0.92)', opacity: 0 },
     { transform: 'none', opacity: 1 },

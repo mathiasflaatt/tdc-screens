@@ -31,7 +31,10 @@ const GRID_SIZE = DUCK_PIXELS.length;
 const DUCK_RECTS = DUCK_PIXELS.flatMap((row, y) =>
   [...row].flatMap((pixel, x) => {
     const fill = DUCK_PALETTE[pixel];
-    return fill ? [<rect key={`${x}-${y}`} x={x} y={y} width={1.02} height={1.02} fill={fill} />] : [];
+    if (!fill) return [];
+    // The eye is addressable so the napping duck can close it from CSS.
+    const className = pixel === 'g' ? 'pixel-duck__eye' : undefined;
+    return [<rect key={`${x}-${y}`} className={className} x={x} y={y} width={1.02} height={1.02} fill={fill} />];
   }),
 );
 

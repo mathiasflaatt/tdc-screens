@@ -127,7 +127,9 @@ test('features the next room talk during a shared coffee break and shows its act
   await page.goto('/room/42');
 
   await expect(page.getByRole('heading', { name: longTalkTitle })).toBeVisible();
-  await expect(page.getByText('Shared break')).toBeVisible();
+  // Breaks are marked for the duck, not with a notice that crowds the room name.
+  await expect(page.getByRole('region', { name: 'Live schedule for Andromeda' })).toHaveAttribute('data-room-context', 'break');
+  await expect(page.getByText('Shared break')).toHaveCount(0);
   await expect(page.getByText('Next talk starts at 11:00')).toBeVisible();
   await expect(page.getByText('11:00–11:40')).toBeVisible();
   await expect(page.getByText('Sam Example')).toBeVisible();
@@ -151,13 +153,14 @@ test('features the next room talk during a shared coffee break and shows its act
 test('distinguishes a shared lunch from a break and from an ordinary room gap', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-10-19T10:30:00.000Z'));
   await page.goto('/room/42');
-  await expect(page.getByText('Shared lunch')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Live schedule for Andromeda' })).toHaveAttribute('data-room-context', 'lunch');
+  await expect(page.getByText('Shared lunch')).toHaveCount(0);
   await expect(page.getByText('Next talk starts at 13:00')).toBeVisible();
 
   await page.clock.setFixedTime(new Date('2026-10-19T12:50:00.000Z'));
   await page.reload();
   await expect(page.getByText('Between sessions')).toBeVisible();
-  await expect(page.getByText('Shared break')).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Live schedule for Andromeda' })).not.toHaveAttribute('data-room-context', /.+/);
 });
 
 test('shows a plenary notice with its actual venue while keeping the room agenda local', async ({ page }) => {
