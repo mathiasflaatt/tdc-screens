@@ -41,10 +41,10 @@ const directLinks: { path: string; expectDisplay: (page: Page) => Promise<void> 
   { path: '/', expectDisplay: expectScreenSelector },
   { path: '/room/42', expectDisplay: expectRoomDisplay },
   { path: '/room/42/', expectDisplay: expectRoomDisplay },
-  { path: '/room/42?test=true&at=10:35', expectDisplay: expectRoomDisplay },
+  { path: '/room/42?test=true&at=10%3A35', expectDisplay: expectRoomDisplay },
   { path: '/common', expectDisplay: expectCommonDisplay },
   { path: '/common/', expectDisplay: expectCommonDisplay },
-  { path: '/common?test=true&at=10:35', expectDisplay: expectCommonDisplay },
+  { path: '/common?test=true&at=10%3A35', expectDisplay: expectCommonDisplay },
 ];
 
 for (const { path, expectDisplay } of directLinks) {
