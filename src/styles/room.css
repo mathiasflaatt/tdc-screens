@@ -1,5 +1,15 @@
 /* Portrait room display — 1080×1920 canvas. */
-.room-canvas .kiosk-title { font-size: var(--kiosk-text-lg); }
+/* Room name sits just under the header rule; the negative margin pulls it closer than the canvas gap. */
+.room-name {
+  margin: calc(var(--spacing-8) * -1 + var(--spacing-4)) 0 0;
+  color: var(--color-fg-accent);
+  font-family: var(--font-family-mono);
+  font-size: var(--kiosk-text-lg);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.02em;
+  line-height: var(--line-height-none);
+  overflow-wrap: anywhere;
+}
 
 .room-body {
   display: flex;
@@ -40,6 +50,18 @@
   overflow-wrap: anywhere;
   text-wrap: balance;
 }
+.session-tags { display: flex; flex-wrap: wrap; gap: var(--spacing-3); margin: 0; padding: 0; list-style: none; }
+.session-tag {
+  padding: var(--spacing-1) var(--spacing-4);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  color: var(--color-fg-muted);
+  font-family: var(--font-family-mono);
+  font-size: var(--kiosk-text-sm);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+.session-tag--main { border-color: var(--color-fg-brand); color: var(--color-fg-brand); }
 .featured-date { margin: 0; color: var(--color-fg-accent); font-family: var(--font-family-mono); font-size: var(--kiosk-text-sm); }
 .featured-detail { margin: 0; color: var(--color-fg-muted); font-size: var(--kiosk-text-md); }
 .featured-card .speaker-list { --speaker-size: 6rem; --speaker-text: var(--kiosk-text-md); }

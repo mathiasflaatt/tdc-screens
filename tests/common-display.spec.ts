@@ -66,7 +66,7 @@ test('opens the permanent common-area URL after a reload with six feed-derived t
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto('/common');
 
-  await expect(page.getByRole('heading', { name: /common areas/i })).toBeVisible();
+  await expect(page.getByRole('main', { name: /common/i }).getByRole('img', { name: 'TDC' })).toBeVisible();
   await expect(page.getByRole('heading', { name: longTitle })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Room B', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Main Hall' })).toHaveCount(0);
@@ -74,7 +74,7 @@ test('opens the permanent common-area URL after a reload with six feed-derived t
 
   await page.reload();
   await expect(page).toHaveURL(/\/common$/);
-  await expect(page.getByRole('heading', { name: /common areas/i })).toBeVisible();
+  await expect(page.getByRole('main', { name: /common/i }).getByRole('img', { name: 'TDC' })).toBeVisible();
   await expect(page.getByRole('article')).toHaveCount(6);
 
   const dimensions = await page.getByRole('main', { name: 'Common-area conference overview' }).evaluate((element) => ({
@@ -169,7 +169,7 @@ test('offers a common-area link from the screen selector', async ({ page }) => {
   await expect(commonLink).toHaveAttribute('href', '/common');
   await commonLink.click();
   await expect(page).toHaveURL(/\/common$/);
-  await expect(page.getByRole('heading', { name: /common areas/i })).toBeVisible();
+  await expect(page.getByRole('main', { name: /common/i }).getByRole('img', { name: 'TDC' })).toBeVisible();
 });
 
 test('moves updated talks to their new room and removes cancelled talks on refresh', async ({ page }) => {
@@ -236,7 +236,8 @@ test('shows every talk room as a column with now, next, and remaining talks', as
   await page.goto('/common');
 
   const header = page.getByRole('main').locator('header');
-  await expect(header.getByRole('heading', { name: /common areas/i, level: 1 })).toBeVisible();
+  await expect(header.getByRole('heading')).toHaveCount(0);
+  await expect(page.getByText(/common areas/i)).toHaveCount(0);
   await expect(header.getByRole('img', { name: 'TDC' })).toBeVisible();
   await expect(header.getByLabel('Oslo local time')).toHaveText('10:15');
   await expect(page.getByText('All room screens')).toHaveCount(0);
@@ -293,4 +294,53 @@ test('renders the landscape canvas identically on a 4K screen', async ({ page })
   }));
   expect(dimensions).toMatchObject({ width: 1920, height: 1080 });
   expect(dimensions.scrollHeight).toBeLessThanOrEqual(1080);
+});
+
+test('aligns later lists across rooms and caps them at three talks', async ({ page }) => {
+  const busy = structuredClone(schedule);
+  busy.sessions.push(
+    session('a-late-1', 'room-a', 'Room A late talk one', '13:00', '13:30'),
+    session('a-late-2', 'room-a', 'Room A late talk two', '13:30', '14:00'),
+    session('a-late-3', 'room-a', 'Room A late talk three', '14:00', '14:30'),
+    session('c-later', 'room-c', 'Room C later talk', '12:00', '12:40'),
+  );
+  await page.unroute('**/api/schedule*');
+  await page.route('**/api/schedule*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(busy) }),
+  );
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.goto('/common');
+
+  const laterA = page.getByRole('list', { name: 'Later in Room A' });
+  const laterC = page.getByRole('list', { name: 'Later in Room C' });
+  await expect(laterA.getByRole('listitem')).toHaveCount(3);
+  await expect(laterA.getByText('Room A late talk three')).toHaveCount(0);
+
+  // Room A's long featured title must not push its later list below Room C's.
+  const [boxA, boxC] = await Promise.all([laterA.boundingBox(), laterC.boundingBox()]);
+  expect(Math.abs(boxA!.y - boxC!.y)).toBeLessThan(1);
+});
+
+test('orders room columns by capacity, largest first', async ({ page }) => {
+  const venueRooms = ['Andromeda', 'Aurora', 'Cosmos 1 & 2', 'Cosmos 3AB', 'Cosmos 3CD', 'Living room']
+    .map((name, index) => ({ id: `venue-${index}`, name }));
+  const venue = {
+    fetchedAt: schedule.fetchedAt,
+    rooms: venueRooms,
+    sessions: venueRooms.map((room) => ({
+      id: `${room.id}-talk`, roomId: room.id, room: room.name, title: `${room.name} talk`,
+      startsAt: '2026-10-19T10:00:00', endsAt: '2026-10-19T10:40:00',
+      speakers: [], isServiceSession: false, isPlenumSession: false,
+    })),
+  };
+  await page.unroute('**/api/schedule*');
+  await page.route('**/api/schedule*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(venue) }),
+  );
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.goto('/common');
+
+  await expect(page.getByRole('article').getByRole('heading', { level: 2 })).toHaveText([
+    'Cosmos 1 & 2', 'Aurora', 'Living room', 'Cosmos 3AB', 'Cosmos 3CD', 'Andromeda',
+  ]);
 });
