@@ -32,6 +32,6 @@ The browser tests use controlled schedule responses and a frozen clock in an `Am
 
 ## Deploy to Vercel
 
-See [docs/deployment.md](docs/deployment.md) for Vercel setup, the no-database design, TV/kiosk browser setup (full screen, no sleep, no scrollbars, 1080p versus 4K), and the live Sessionize smoke check. Hobby is limited to personal, non-commercial use, so check eligibility against Vercel's current terms before deploying.
+The app is deployed on Vercel. See [docs/deployment.md](docs/deployment.md) for the project configuration and redeploy flow, the no-database design, TV/kiosk browser setup (full screen, no sleep, no scrollbars, 1080p versus 4K), and the live Sessionize smoke check. Hobby is limited to personal, non-commercial use, so check eligibility against Vercel's current terms before the event.
 
 The visual direction follows the [TDC 2026 website](https://2026.trondheimdc.no/#coc): near-black surfaces, mint accents, a yellow highlight, and readable type.

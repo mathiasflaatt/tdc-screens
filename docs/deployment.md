@@ -8,12 +8,18 @@ The app is a static Vite single-page app plus one serverless function, `api/sche
 - There is no database, key-value store, cron job, environment variable or paid add-on. The function sends `Cache-Control: no-store` and `Vercel-Cache-Control: no-store`, so there is no server cache layered over the five-minute browser polling.
 - Each TV keeps its last valid schedule in its own browser `localStorage`. During an outage the screen keeps showing that schedule with a stale-data marker and recovers on the next successful five-minute refresh without a reload.
 
-## Vercel setup
+## Vercel project
 
-1. **Check plan eligibility first.** The Hobby plan is limited to personal, non-commercial use. A conference deployment may not qualify. Before deploying, check the current [Hobby plan terms](https://vercel.com/docs/plans/hobby), the [Fair Use Guidelines](https://vercel.com/docs/limits/fair-use-guidelines) and the [Function limits](https://vercel.com/docs/functions/limitations) against the account and use; choose Pro if Hobby does not apply.
-2. Import the GitHub repository as a new Vercel project. Leave the framework preset, root directory and environment variables at their defaults; `vercel.json` sets `npm run build` as the build command and `dist` as the output directory.
-3. Vercel discovers `api/schedule.js` as a Node.js function at `/api/schedule`.
-4. After the first deployment, open `/`, choose each room screen and `/common`, and reload each page once to confirm direct links work. Then run the live smoke check against the deployment (see below).
+The repository is already imported into a Vercel project and deployed. All build settings are in the repository: `vercel.json` sets `npm run build` as the build command, `dist` as the output directory and the SPA rewrites. Vercel discovers `api/schedule.js` as a Node.js function at `/api/schedule`. The project needs no environment variables, database or integrations. Keep the dashboard's build, output and root-directory overrides empty so that `vercel.json` stays authoritative.
+
+**Plan eligibility.** The Hobby plan is limited to personal, non-commercial use. A conference deployment may not qualify. Before the event, check the current [Hobby plan terms](https://vercel.com/docs/plans/hobby), the [Fair Use Guidelines](https://vercel.com/docs/limits/fair-use-guidelines) and the [Function limits](https://vercel.com/docs/functions/limitations) against the account and its use. Move the project to Pro if Hobby does not apply.
+
+**Redeploying.** With the project connected through Vercel's Git integration (the default for an imported repository), Vercel builds a preview deployment for every pushed branch or pull request and a production deployment for every merge to `main`. To release:
+
+1. Run the checks under [Verifying a release](#verifying-a-release) locally.
+2. Merge to `main` and wait for the production deployment to finish in the Vercel dashboard. Optionally, check the pull request's preview URL first.
+3. On the production URL, open `/`, `/common` and one or two `/room/<id>` screens, reload each once, and run `npm run smoke:sessionize -- https://<production-domain>`.
+4. Running TVs pick up the new build on their next reload. The schedule itself does not need a redeploy, because Sessionize changes reach the screens within five minutes. To roll back, promote the previous production deployment in the Vercel dashboard ("Instant Rollback").
 
 ### Routing
 

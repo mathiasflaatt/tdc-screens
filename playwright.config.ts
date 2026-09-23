@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const DEV_URL = 'http://127.0.0.1:4173';
-const PRODUCTION_URL = 'http://127.0.0.1:4174';
+// Separate from `npm run preview:production` (4174) so a running preview never blocks tests.
+const PRODUCTION_URL = 'http://127.0.0.1:4175';
 const PRODUCTION_SPECS = '**/production-*.spec.ts';
 
 export default defineConfig({
@@ -33,7 +34,7 @@ export default defineConfig({
     {
       command: 'npm run build && node scripts/serve-production.mjs',
       url: PRODUCTION_URL,
-      env: { PORT: '4174' },
+      env: { PORT: '4175' },
       reuseExistingServer: false,
       timeout: 120_000,
     },
