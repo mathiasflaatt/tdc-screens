@@ -1,0 +1,34 @@
+/* TDC brand wordmark — copied from trondheimdc.no 04-components/wordmark.css.
+   Three pixel letterforms (T · long-D · C) composed in a row. Displays are
+   always dark, so only the green letters are used. */
+.tdc-wordmark {
+  --wordmark-size: 1.625rem; /* override per placement */
+
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--wordmark-size) * 0.14);
+  block-size: var(--wordmark-size);
+}
+
+.tdc-wordmark__letter {
+  display: block;
+  block-size: 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+
+.tdc-wordmark__letter--t {
+  aspect-ratio: 40 / 52;
+  background-image: url("../assets/logos/T-green.svg");
+}
+
+.tdc-wordmark__letter--d {
+  aspect-ratio: 154 / 52;
+  background-image: url("../assets/logos/D-green-long.svg");
+}
+
+.tdc-wordmark__letter--c {
+  aspect-ratio: 40 / 52;
+  background-image: url("../assets/logos/C-green.svg");
+}
