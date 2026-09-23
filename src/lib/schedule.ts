@@ -35,6 +35,20 @@ export type RoomDisplayState = {
   context?: RoomContext;
 };
 
+export type CommonRoomPhase = 'live' | 'before' | 'break' | 'lunch' | 'next' | 'ended' | 'empty';
+
+export type CommonRoomDisplay = {
+  room: DisplayRoom;
+  phase: CommonRoomPhase;
+  session?: DisplaySession;
+};
+
+export type CommonDisplayState = {
+  phase: 'scheduled' | 'complete' | 'empty';
+  rooms: CommonRoomDisplay[];
+  plenary?: DisplaySession;
+};
+
 type TimedSession = { session: DisplaySession; start: number; end: number };
 
 const osloFormatter = new Intl.DateTimeFormat('en-GB', {
@@ -189,6 +203,64 @@ export function getUpcomingRoomSessions(
     )
     .slice(0, 2)
     .map(({ session }) => session);
+}
+
+export function getCommonDisplayState(snapshot: ScheduleSnapshot, now: number): CommonDisplayState {
+  const allSessions = timedSessions(snapshot);
+  if (allSessions.length === 0) return { phase: 'empty', rooms: [] };
+
+  const talks = allSessions.filter(({ session }) => !session.isServiceSession && !session.isPlenumSession);
+  if (talks.length === 0) return { phase: 'empty', rooms: [] };
+
+  const programEnd = Math.max(...allSessions.map(({ end }) => end));
+  if (now >= programEnd) return { phase: 'complete', rooms: [] };
+
+  const talkRoomIds = new Set(talks.map(({ session }) => session.roomId));
+  const rooms = snapshot.rooms.filter((room) => talkRoomIds.has(room.id));
+  if (rooms.length === 0) return { phase: 'empty', rooms: [] };
+
+  const programStart = Math.min(...talks.map(({ start }) => start));
+  const beforeEvent = now < programStart;
+  const today = osloDateKey(now);
+  const activeServiceContext = allSessions
+    .filter(({ session, start, end }) =>
+      session.isServiceSession && start <= now && now < end && contextForService(session) !== null,
+    )
+    .map(({ session }) => contextForService(session))
+    .find((context) => context?.type === 'lunch')
+    ?? allSessions
+      .filter(({ session, start, end }) =>
+        session.isServiceSession && start <= now && now < end && contextForService(session)?.type === 'break',
+      )
+      .map(({ session }) => contextForService(session))
+      .find((context) => context?.type === 'break');
+
+  const roomStates = rooms.map((room): CommonRoomDisplay => {
+    const roomTalks = talks.filter(({ session }) => session.roomId === room.id);
+    const current = currentEntry(roomTalks, now);
+    if (current) return { room, phase: 'live', session: current.session };
+
+    const todayTalks = roomTalks.filter(({ start }) => osloDateKey(start) === today);
+    const next = todayTalks.find(({ start }) => start > now);
+    if (next) {
+      const phase = beforeEvent
+        ? 'before'
+        : activeServiceContext?.type === 'lunch'
+          ? 'lunch'
+          : activeServiceContext?.type === 'break'
+            ? 'break'
+            : 'next';
+      return { room, phase, session: next.session };
+    }
+
+    return { room, phase: roomTalks.length === 0 ? 'empty' : 'ended' };
+  });
+
+  const plenary = allSessions.find(({ session, start, end }) =>
+    session.isPlenumSession && start <= now && now < end,
+  )?.session;
+
+  return { phase: 'scheduled', rooms: roomStates, plenary };
 }
 
 export function isScheduleSnapshot(value: unknown): value is ScheduleSnapshot {

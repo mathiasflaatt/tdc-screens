@@ -1,6 +1,6 @@
 # TDC conference displays
 
-The home page lists the available room displays. Each room has a permanent URL at `/room/<sessionize-room-id>`; use the link shown on the selector page when configuring a TV. The room ID is the stable ID from the conference schedule.
+The home page lists the available room displays and links to the common-area overview. Each room has a permanent URL at `/room/<sessionize-room-id>`, and the common-area display is at `/common`; use these links when configuring TVs. Room cards are derived from the current Sessionize schedule.
 
 ## Schedule data
 
@@ -25,11 +25,11 @@ npm test
 npm run test:api
 ```
 
-The browser tests use controlled schedule responses and a frozen clock in an `America/Los_Angeles` browser context. They cover room selection and direct links, Oslo time, session changes, unknown rooms, and schedule-loading failures. Install Playwright's Chromium with `npx playwright install chromium`. To use an existing Chrome or Chromium installation, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its executable path before running `npm test`.
+The browser tests use controlled schedule responses and a frozen clock in an `America/Los_Angeles` browser context. They cover room selection and direct links, Oslo time, session changes, common-area room selection and layout, breaks and lunch, plenaries, unequal room start times, unknown rooms, and schedule-loading failures. Install Playwright's Chromium with `npx playwright install chromium`. To use an existing Chrome or Chromium installation, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its executable path before running `npm test`.
 
 ## Deploy to Vercel
 
-Import this repository as a Vercel project. The project settings in `vercel.json` run `npm run build`, serve the `dist` output, and rewrite `/room/<id>` to the single-page app. Vercel discovers the `/api/schedule` function from `api/schedule.js`. No database, environment variables, or scheduled job are needed.
+Import this repository as a Vercel project. The project settings in `vercel.json` run `npm run build`, serve the `dist` output, and rewrite `/room/<id>` and `/common` to the single-page app. Vercel discovers the `/api/schedule` function from `api/schedule.js`. No database, environment variables, or scheduled job are needed.
 
 Every active screen polls the function every five minutes; the function calls Sessionize for each request and is not backed by a server cache. Estimate about 12 function invocations per active screen per hour, plus initial loads and retries. Vercel currently lists 1,000,000 monthly function invocations on Hobby, which is limited to personal, non-commercial use. A conference deployment may not qualify, so check the current [Hobby plan terms and usage](https://vercel.com/docs/plans/hobby) and [Function limits](https://vercel.com/docs/functions/limitations) for the account and deployment before choosing a plan. The function's upstream timeout is 10 seconds; Vercel's maximum function duration depends on plan and compute settings.
 

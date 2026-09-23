@@ -2,6 +2,8 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/common", "destination": "/index.html" },
+    { "source": "/common/(.*)", "destination": "/index.html" },
     { "source": "/room/(.*)", "destination": "/index.html" }
   ]
 }

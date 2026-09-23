@@ -8,7 +8,9 @@ import {
   parseSessionInstant,
   getRoomDisplayState,
   getUpcomingRoomSessions,
+  getCommonDisplayState,
   isScheduleSnapshot,
+  type CommonRoomDisplay,
   type DisplayRoom,
   type DisplaySession,
   type RoomContext,
@@ -175,6 +177,13 @@ function ScreenSelector({ rooms, stale }: { rooms: DisplayRoom[]; stale: boolean
       ) : (
         <p className="empty-rooms">No room screens are available yet.</p>
       )}
+      <nav className="common-screen-link" aria-label="Other screens">
+        <a className="room-link" href="/common">
+          <span className="room-number">↗</span>
+          <span className="room-link-name">Common-area display</span>
+          <span className="room-link-arrow" aria-hidden="true">↗</span>
+        </a>
+      </nav>
       <footer className="page-footer">
         <span>Trondheim · Europe/Oslo</span>
         <span>One permanent address for each room</span>
@@ -323,6 +332,125 @@ function RoomDisplay({ snapshot, room, stale }: { snapshot: ScheduleSnapshot; ro
   );
 }
 
+function CommonRoomCard({ display, index }: { display: CommonRoomDisplay; index: number }) {
+  const { phase, room, session } = display;
+  const status = phase === 'live'
+    ? 'Happening now'
+    : phase === 'before'
+      ? 'Starts later'
+      : phase === 'break'
+        ? 'Break · next talk'
+        : phase === 'lunch'
+          ? 'Lunch · next talk'
+          : phase === 'next'
+            ? 'Next talk'
+            : phase === 'empty'
+              ? 'No talks scheduled'
+              : 'No more talks today';
+  const roomHeadingId = `common-room-${index}`;
+
+  return (
+    <article className={`common-card common-card--${phase}`} aria-labelledby={roomHeadingId}>
+      <header className="common-card-header">
+        <h2 id={roomHeadingId}>{room.name}</h2>
+        <p className="common-card-status">{status}</p>
+      </header>
+      {session ? (
+        <div className="common-card-session">
+          <h3>{session.title}</h3>
+          {phase === 'before' && (
+            <p className="common-card-date">
+              {formatOsloDate(parseSessionInstant(session.startsAt) ?? Date.now())}
+            </p>
+          )}
+          <div className="common-card-time">
+            <span>{phase === 'live' ? 'SCHEDULED TIME' : 'STARTS AT'}</span>
+            <time dateTime={session.startsAt}>
+              {phase === 'live' ? formatSessionRange(session) : formatSessionStart(session)}
+            </time>
+          </div>
+        </div>
+      ) : (
+        <p className="common-card-empty">
+          {phase === 'empty' ? 'No talks are scheduled in this room.' : 'This room has no further talks today.'}
+        </p>
+      )}
+    </article>
+  );
+}
+
+function CommonDisplay({ snapshot, stale }: { snapshot: ScheduleSnapshot; stale: boolean }) {
+  const now = useLocalClock();
+  const display = getCommonDisplayState(snapshot, now);
+
+  if (display.phase === 'complete') {
+    return (
+      <main className="state-page" aria-live="polite">
+        <BrandMark />
+        <div className="state-message">
+          <p className="eyebrow">TDC 2026 · COMMON AREAS</p>
+          <h1>Programme complete</h1>
+          <p>The conference programme has ended for today.</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (display.phase === 'empty') {
+    return (
+      <main className="state-page" aria-live="polite">
+        <BrandMark />
+        <div className="state-message">
+          <p className="eyebrow">TDC 2026 · COMMON AREAS</p>
+          <h1>No talk rooms scheduled</h1>
+          <p>There are no rooms with talks in the current conference programme.</p>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="common-display" aria-label="Common-area conference overview">
+      <header className="common-header">
+        <BrandMark />
+        <div className="common-heading">
+          <p className="eyebrow">TDC 2026 · COMMON AREA</p>
+          <h1>Common Areas</h1>
+          <p className="common-date">{formatOsloDate(now)}</p>
+        </div>
+        <div className="common-clock-wrap">
+          <time className="common-clock" aria-label="Oslo local time" dateTime={new Date(now).toISOString()}>
+            {formatOsloTime(now)}
+          </time>
+          <span className="clock-caption">LOCAL TIME · TRONDHEIM</span>
+        </div>
+        {stale && <StaleNotice />}
+      </header>
+
+      <section className="common-content" aria-label="Talk rooms">
+        {display.plenary && (
+          <aside className="common-plenary" role="status" aria-label="Shared plenary">
+            <span>SHARED PLENARY</span>
+            <strong>{display.plenary.title}</strong>
+            <p>Now in <b>{display.plenary.room}</b></p>
+          </aside>
+        )}
+        <div className="common-grid">
+          {display.rooms.map((room, index) => (
+            <CommonRoomCard key={room.room.id} display={room} index={index} />
+          ))}
+        </div>
+      </section>
+
+      <footer className="common-footer">
+        <a href="/">All room screens</a>
+        <span className="footer-brand">TDC 2026</span>
+        <span>Europe/Oslo</span>
+      </footer>
+    </main>
+  );
+}
+
 function UnknownRoom({ roomId }: { roomId: string }) {
   return (
     <main className="state-page">
@@ -340,8 +468,10 @@ function UnknownRoom({ roomId }: { roomId: string }) {
 function App() {
   const state = useSchedule();
   const route = /^\/room\/([^/]+)\/?$/.exec(window.location.pathname);
+  const commonRoute = /^\/common\/?$/.test(window.location.pathname);
 
   if (!state.snapshot || state.loading || state.error) return <ScheduleStateMessage state={state} />;
+  if (commonRoute) return <CommonDisplay snapshot={state.snapshot} stale={state.stale} />;
   if (!route) return <ScreenSelector rooms={state.snapshot.rooms} stale={state.stale} />;
 
   let roomId = route[1];
