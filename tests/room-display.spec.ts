@@ -94,7 +94,7 @@ test('shows the featured talk, speaker portrait and nearest room agenda on a 108
   await expect(page.getByText('The next talk starts on the room clock')).toBeVisible();
   await expect(page.getByText(longTalkTitle)).toBeVisible();
 
-  const display = page.locator('.display-page');
+  const display = page.getByRole('main', { name: 'Andromeda room display' });
   const dimensions = await display.evaluate((element) => ({
     width: element.clientWidth,
     height: element.clientHeight,
@@ -515,8 +515,9 @@ test('scales the fixed portrait canvas uniformly to fill a 4K portrait screen', 
   await page.goto('/room/42');
 
   await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toBeVisible();
-  expect(await page.locator('.display-page').boundingBox()).toEqual({ x: 0, y: 0, width: 2160, height: 3840 });
-  const dimensions = await page.locator('.display-page').evaluate((element) => ({
+  const display = page.getByRole('main', { name: 'Andromeda room display' });
+  expect(await display.boundingBox()).toEqual({ x: 0, y: 0, width: 2160, height: 3840 });
+  const dimensions = await display.evaluate((element) => ({
     width: element.clientWidth,
     height: element.clientHeight,
     scrollHeight: element.scrollHeight,
