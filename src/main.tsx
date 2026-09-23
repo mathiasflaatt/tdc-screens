@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { SimulationControls } from './components/SimulationControls';
+import { simulationHref, useSimulationClock, type SimulationClock } from './hooks/useSimulationClock';
 import {
   formatOsloDate,
   formatOsloTime,
@@ -21,13 +23,6 @@ import './styles.css';
 const SCHEDULE_URL = '/api/schedule';
 const CACHE_KEY = 'tdc-2026-schedule-v1';
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-const SIMULATION_MODE_PARAMETER = 'test';
-const SIMULATION_TIME_PARAMETER = 'at';
-const SIMULATION_SPEED_PARAMETER = 'speed';
-const PLAYBACK_SPEEDS = [1, 10, 60] as const;
-
-type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number];
-
 type ScheduleState = {
   snapshot: ScheduleSnapshot | null;
   loading: boolean;
@@ -103,152 +98,9 @@ function useSchedule(): ScheduleState {
   return state;
 }
 
-function formatOsloDateTimeInput(instant: number): string {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Oslo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(instant).map((part) => [part.type, part.value]));
-  const day = `${parts.year}-${parts.month}-${parts.day}`;
-  const time = `${parts.hour}:${parts.minute}`;
-  return `${day}T${time}`;
-}
-
-function conferenceDate(snapshot: ScheduleSnapshot | null): string {
-  const sessionStarts = snapshot?.sessions
-    .map((session) => parseSessionInstant(session.startsAt))
-    .filter((instant): instant is number => instant !== null) ?? [];
-  return sessionStarts.length > 0
-    ? formatOsloDateTimeInput(Math.min(...sessionStarts)).slice(0, 10)
-    : formatOsloDateTimeInput(Date.now()).slice(0, 10);
-}
-
-function conferenceDayEnd(day: string): number {
-  const nextDate = new Date(`${day}T00:00:00Z`);
-  nextDate.setUTCDate(nextDate.getUTCDate() + 1);
-  const nextMidnight = parseSessionInstant(`${nextDate.toISOString().slice(0, 10)}T00:00:00`);
-  const startOfDay = parseSessionInstant(`${day}T00:00:00`);
-  return (nextMidnight ?? (startOfDay ?? Date.now()) + 86_400_000) - 60_000;
-}
-
-function simulationEnabledInUrl(): boolean {
-  return new URLSearchParams(window.location.search).get(SIMULATION_MODE_PARAMETER) === 'true';
-}
-
-function currentSimulationTimeFromUrl(day: string): number | null {
-  if (!simulationEnabledInUrl()) return null;
-  const value = new URLSearchParams(window.location.search).get(SIMULATION_TIME_PARAMETER);
-  const currentOsloTime = formatOsloDateTimeInput(Date.now()).slice(11, 16);
-  const time = value && /^\d{2}:\d{2}$/.test(value) ? value : currentOsloTime;
-  return parseSessionInstant(`${day}T${time}:00`);
-}
-
-function currentSimulationSpeedFromUrl(): PlaybackSpeed {
-  if (!simulationEnabledInUrl()) return 1;
-  const value = Number(new URLSearchParams(window.location.search).get(SIMULATION_SPEED_PARAMETER));
-  return PLAYBACK_SPEEDS.find((playbackSpeed) => playbackSpeed === value) ?? 1;
-}
-
-function setSimulationUrlParameters(url: URL, instant: number | null, speed: PlaybackSpeed): void {
-  if (instant === null) {
-    url.searchParams.delete(SIMULATION_MODE_PARAMETER);
-    url.searchParams.delete(SIMULATION_TIME_PARAMETER);
-    url.searchParams.delete(SIMULATION_SPEED_PARAMETER);
-  } else {
-    url.searchParams.set(SIMULATION_MODE_PARAMETER, 'true');
-    url.searchParams.set(SIMULATION_TIME_PARAMETER, formatOsloDateTimeInput(instant).slice(11, 16));
-    if (speed === 1) url.searchParams.delete(SIMULATION_SPEED_PARAMETER);
-    else url.searchParams.set(SIMULATION_SPEED_PARAMETER, String(speed));
-  }
-}
-
-function writeSimulationUrl(instant: number | null, speed: PlaybackSpeed): void {
-  const url = new URL(window.location.href);
-  setSimulationUrlParameters(url, instant, speed);
-  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
-}
-
-type SimulationClock = {
-  active: boolean;
-  now: number;
-  playing: boolean;
-  speed: PlaybackSpeed;
-  seek: (instant: number) => void;
-  togglePlaying: () => void;
-  setSpeed: (speed: PlaybackSpeed) => void;
-  returnToLive: () => void;
-};
-
-function useSimulationClock(snapshot: ScheduleSnapshot | null): SimulationClock {
-  const day = conferenceDate(snapshot);
-  const [initialSimulationTime] = useState(() => currentSimulationTimeFromUrl(day));
-  const [simulationTime, setSimulationTime] = useState(initialSimulationTime ?? Date.now());
-  const [liveTime, setLiveTime] = useState(() => Date.now());
-  const [active, setActive] = useState(simulationEnabledInUrl);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeedState] = useState(currentSimulationSpeedFromUrl);
-  const simulationTimeRef = useRef(simulationTime);
-
-  useEffect(() => {
-    if (!active) return;
-    const fromUrl = currentSimulationTimeFromUrl(day);
-    if (fromUrl === null) return;
-    simulationTimeRef.current = fromUrl;
-    setSimulationTime(fromUrl);
-    writeSimulationUrl(fromUrl, speed);
-  }, [active, day]);
-
-  useEffect(() => {
-    let previousRealTime = Date.now();
-    const timer = window.setInterval(() => {
-      const realTime = Date.now();
-      const elapsed = realTime - previousRealTime;
-      previousRealTime = realTime;
-      setLiveTime(realTime);
-      if (active && playing) {
-        const endOfDay = conferenceDayEnd(day);
-        const next = Math.min(simulationTimeRef.current + elapsed * speed, endOfDay);
-        simulationTimeRef.current = next;
-        setSimulationTime(next);
-        writeSimulationUrl(next, speed);
-        if (next >= endOfDay) setPlaying(false);
-      }
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [active, day, playing, speed]);
-
-  return {
-    active,
-    now: active ? simulationTime : liveTime,
-    playing,
-    speed,
-    seek: (instant) => {
-      simulationTimeRef.current = instant;
-      setActive(true);
-      setSimulationTime(instant);
-      writeSimulationUrl(instant, speed);
-    },
-    togglePlaying: () => setPlaying((value) => !value),
-    setSpeed: (nextSpeed) => {
-      setSpeedState(nextSpeed);
-      if (active) writeSimulationUrl(simulationTimeRef.current, nextSpeed);
-    },
-    returnToLive: () => {
-      setPlaying(false);
-      setActive(false);
-      setLiveTime(Date.now());
-      writeSimulationUrl(null, speed);
-    },
-  };
-}
-
 function BrandMark({ simulation }: { simulation?: SimulationClock } = {}) {
   return (
-    <a className="brand-mark" href={simulation ? screenHref('/', simulation) : '/'} aria-label="TDC 2026 conference displays">
+    <a className="brand-mark" href={simulation ? simulationHref('/', simulation) : '/'} aria-label="TDC 2026 conference displays">
       <span>TDC</span><i aria-hidden="true" />
     </a>
   );
@@ -288,105 +140,6 @@ function StaleNotice() {
   return <p className="stale-notice" role="status">Schedule may be out of date</p>;
 }
 
-function screenHref(path: string, simulation: SimulationClock): string {
-  const url = new URL(window.location.href);
-  url.pathname = path;
-  setSimulationUrlParameters(url, simulation.active ? simulation.now : null, simulation.speed);
-  return `${url.pathname}${url.search}${url.hash}`;
-}
-
-function SimulationControls({
-  snapshot,
-  simulation,
-  switchHref,
-  switchLabel,
-}: {
-  snapshot: ScheduleSnapshot;
-  simulation: SimulationClock;
-  switchHref?: string;
-  switchLabel?: string;
-}) {
-  if (!simulation.active) return null;
-
-  const sessionInstants = snapshot.sessions.flatMap((session) => [
-    parseSessionInstant(session.startsAt),
-    parseSessionInstant(session.endsAt),
-  ]).filter((instant): instant is number => instant !== null);
-  const scheduleBoundaries = [...new Set(sessionInstants)].sort((left, right) => left - right);
-  const previousBoundary = scheduleBoundaries.filter((instant) => instant < simulation.now).at(-1);
-  const nextBoundary = scheduleBoundaries.find((instant) => instant > simulation.now);
-  const day = conferenceDate(snapshot);
-  const minimum = parseSessionInstant(`${day}T00:00:00`) ?? simulation.now;
-  const maximum = conferenceDayEnd(day);
-  const scrubberTime = Math.min(maximum, Math.max(minimum, simulation.now));
-
-  return (
-    <section className="simulation-controls" aria-label="Simulation controls">
-      <div className="simulation-controls-heading">
-        <p className="simulation-mode-label" role="status">Simulated time</p>
-        <div className="simulation-links">
-          {switchHref && switchLabel && <a href={screenHref(switchHref, simulation)}>{switchLabel}</a>}
-          <button type="button" onClick={simulation.returnToLive}>Back to live</button>
-        </div>
-      </div>
-      <div className="simulation-controls-body">
-        <label className="simulation-time-control">
-          <span>Simulation time</span>
-          <input
-            type="time"
-            step="60"
-            value={formatOsloDateTimeInput(simulation.now).slice(11, 16)}
-            onChange={(event) => {
-              const instant = parseSessionInstant(`${day}T${event.currentTarget.value}:00`);
-              if (instant !== null) simulation.seek(instant);
-            }}
-          />
-        </label>
-        <label className="simulation-scrubber-control">
-          <span>Day scrubber</span>
-          <input
-            aria-label="Day scrubber"
-            type="range"
-            list="simulation-boundaries"
-            min={minimum}
-            max={maximum}
-            step={60_000}
-            value={scrubberTime}
-            onChange={(event) => simulation.seek(Number(event.currentTarget.value))}
-          />
-          <datalist id="simulation-boundaries">
-            {scheduleBoundaries.map((instant) => (
-              <option key={instant} value={instant} label={formatOsloDateTimeInput(instant).slice(11, 16)} />
-            ))}
-          </datalist>
-        </label>
-        <div className="simulation-transport">
-          <button type="button" disabled={previousBoundary === undefined} onClick={() => previousBoundary !== undefined && simulation.seek(previousBoundary)}>
-            Previous boundary
-          </button>
-          <button type="button" onClick={simulation.togglePlaying}>{simulation.playing ? 'Pause' : 'Play'}</button>
-          <button type="button" disabled={nextBoundary === undefined} onClick={() => nextBoundary !== undefined && simulation.seek(nextBoundary)}>
-            Next boundary
-          </button>
-        </div>
-        <fieldset className="simulation-speed-control">
-          <legend>Playback speed</legend>
-          {PLAYBACK_SPEEDS.map((playbackSpeed) => (
-            <button
-              type="button"
-              key={playbackSpeed}
-              aria-pressed={simulation.speed === playbackSpeed}
-              onClick={() => simulation.setSpeed(playbackSpeed)}
-            >
-              {playbackSpeed}×
-            </button>
-          ))}
-        </fieldset>
-      </div>
-    </section>
-  );
-}
-
 function ScreenSelector({
   rooms,
   stale,
@@ -415,7 +168,7 @@ function ScreenSelector({
           <ul className="room-list">
             {rooms.map((room, index) => (
               <li key={room.id}>
-                <a className="room-link" href={screenHref(`/room/${encodeURIComponent(room.id)}`, simulation)}>
+                <a className="room-link" href={simulationHref(`/room/${encodeURIComponent(room.id)}`, simulation)}>
                   <span className="room-number">{String(index + 1).padStart(2, '0')}</span>
                   <span className="room-link-name">{room.name}</span>
                   <span className="room-link-arrow" aria-hidden="true">↗</span>
@@ -428,7 +181,7 @@ function ScreenSelector({
         <p className="empty-rooms">No room screens are available yet.</p>
       )}
       <nav className="common-screen-link" aria-label="Other screens">
-        <a className="room-link" href={screenHref('/common', simulation)}>
+        <a className="room-link" href={simulationHref('/common', simulation)}>
           <span className="room-number">↗</span>
           <span className="room-link-name">Common-area display</span>
           <span className="room-link-arrow" aria-hidden="true">↗</span>
@@ -591,8 +344,8 @@ function RoomDisplay({
       />
 
       <footer className="display-footer">
-        <a href={screenHref('/', simulation)}>All room screens</a>
-        <a href={screenHref('/common', simulation)}>Common-area display</a>
+        <a href={simulationHref('/', simulation)}>All room screens</a>
+        <a href={simulationHref('/common', simulation)}>Common-area display</a>
         <span className="footer-brand">TDC 2026</span>
         <span>Europe/Oslo</span>
       </footer>
@@ -723,7 +476,7 @@ function CommonDisplay({
       <SimulationControls snapshot={snapshot} simulation={simulation} switchHref="/" switchLabel="Choose a room" />
 
       <footer className="common-footer">
-        <a href={screenHref('/', simulation)}>All room screens</a>
+        <a href={simulationHref('/', simulation)}>All room screens</a>
         <span className="footer-brand">TDC 2026</span>
         <span>Europe/Oslo</span>
       </footer>
@@ -739,7 +492,7 @@ function UnknownRoom({ roomId, simulation }: { roomId: string; simulation: Simul
         <p className="eyebrow">ROOM {roomId}</p>
         <h1>Room not found</h1>
         <p>This room is not in the current conference schedule.</p>
-        <a className="back-link" href={screenHref('/', simulation)}>Choose a screen <span aria-hidden="true">↗</span></a>
+        <a className="back-link" href={simulationHref('/', simulation)}>Choose a screen <span aria-hidden="true">↗</span></a>
       </div>
     </main>
   );
