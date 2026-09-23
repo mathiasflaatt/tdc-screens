@@ -17,6 +17,7 @@
 # production
 /build
 /dist
+/.worktrees/
 
 # misc
 .DS_Store
