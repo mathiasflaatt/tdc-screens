@@ -202,13 +202,14 @@ export function getRoomAgenda(
   now: number,
   featuredSession?: DisplaySession,
 ): DisplaySession[] {
-  const dateKey = featuredSession
-    ? osloDateKey(parseSessionInstant(featuredSession.startsAt) ?? now)
-    : osloDateKey(now);
+  const featuredStart = featuredSession ? parseSessionInstant(featuredSession.startsAt) ?? now : now;
+  const dateKey = osloDateKey(featuredStart);
+  // Only list what comes after the featured session, never earlier entries such as registration.
+  const after = Math.max(now, featuredStart);
   return timedSessions(snapshot)
     .filter(({ session, start }) =>
       session.roomId === roomId &&
-      start > now &&
+      start > after &&
       osloDateKey(start) === dateKey &&
       session.id !== featuredSession?.id,
     )

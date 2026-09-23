@@ -443,6 +443,41 @@ test('lists the full rest-of-day room agenda, including breaks', async ({ page }
   ]);
 });
 
+test('lists only sessions after the featured talk and hides the agenda once the room is finished', async ({ page }) => {
+  const withRoomServices = {
+    ...schedule,
+    sessions: [
+      ...schedule.sessions,
+      {
+        id: 'registration', roomId: '42', room: 'Andromeda', title: 'Registration',
+        startsAt: '2026-10-19T09:00:00', endsAt: '2026-10-19T09:45:00',
+        speakers: [], isServiceSession: true, isPlenumSession: false,
+      },
+      {
+        id: 'mingle', roomId: '42', room: 'Andromeda', title: 'Closing mingle',
+        startsAt: '2026-10-19T17:30:00', endsAt: '2026-10-19T18:00:00',
+        speakers: [], isServiceSession: true, isPlenumSession: false,
+      },
+    ],
+  };
+  await page.unroute('**/api/schedule*');
+  await page.route('**/api/schedule*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(withRoomServices) }),
+  );
+  await page.clock.setFixedTime(new Date('2026-10-19T06:30:00.000Z'));
+  await page.goto('/room/42');
+
+  await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toBeVisible();
+  const agenda = page.getByRole('region', { name: /upcoming room agenda/i });
+  await expect(agenda.getByRole('listitem').first()).toHaveText(/10:20–10:45\s*The next talk starts on the room clock/);
+  await expect(agenda.getByText('Registration')).toHaveCount(0);
+
+  await page.clock.setFixedTime(new Date('2026-10-19T15:10:00.000Z'));
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'No more sessions today' })).toBeVisible();
+  await expect(page.getByRole('region', { name: /upcoming room agenda/i })).toHaveCount(0);
+});
+
 test('shows what is on in every other talk room in the elsewhere strip', async ({ page }) => {
   const withOtherRooms = {
     ...schedule,
