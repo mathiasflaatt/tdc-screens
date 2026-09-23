@@ -21,6 +21,10 @@ import './styles.css';
 const SCHEDULE_URL = '/api/schedule';
 const CACHE_KEY = 'tdc-2026-schedule-v1';
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const SIMULATION_PARAMETER = 'simulate';
+const PLAYBACK_SPEEDS = [1, 10, 60] as const;
+
+type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number];
 
 type ScheduleState = {
   snapshot: ScheduleSnapshot | null;
@@ -97,13 +101,91 @@ function useSchedule(): ScheduleState {
   return state;
 }
 
-function useLocalClock(): number {
-  const [now, setNow] = useState(() => Date.now());
+function formatOsloDateTimeInput(instant: number, includeSeconds = false): string {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Oslo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    ...(includeSeconds ? { second: '2-digit' } : {}),
+    hourCycle: 'h23',
+  }).formatToParts(instant).map((part) => [part.type, part.value]));
+  const day = `${parts.year}-${parts.month}-${parts.day}`;
+  const time = `${parts.hour}:${parts.minute}`;
+  return includeSeconds ? `${day}T${time}:${parts.second}` : `${day}T${time}`;
+}
+
+function currentSimulationTimeFromUrl(): number | null {
+  const value = new URLSearchParams(window.location.search).get(SIMULATION_PARAMETER);
+  return value ? parseSessionInstant(value) : null;
+}
+
+function writeSimulationUrl(instant: number | null): void {
+  const url = new URL(window.location.href);
+  if (instant === null) url.searchParams.delete(SIMULATION_PARAMETER);
+  else url.searchParams.set(SIMULATION_PARAMETER, formatOsloDateTimeInput(instant, true));
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+type SimulationClock = {
+  active: boolean;
+  now: number;
+  playing: boolean;
+  speed: PlaybackSpeed;
+  seek: (instant: number) => void;
+  togglePlaying: () => void;
+  setSpeed: (speed: PlaybackSpeed) => void;
+  returnToLive: () => void;
+};
+
+function useSimulationClock(): SimulationClock {
+  const [initialSimulationTime] = useState(currentSimulationTimeFromUrl);
+  const [simulationTime, setSimulationTime] = useState(initialSimulationTime ?? Date.now());
+  const [liveTime, setLiveTime] = useState(() => Date.now());
+  const [active, setActive] = useState(initialSimulationTime !== null);
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState<PlaybackSpeed>(1);
+  const simulationTimeRef = useRef(simulationTime);
+
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    let previousRealTime = Date.now();
+    const timer = window.setInterval(() => {
+      const realTime = Date.now();
+      const elapsed = realTime - previousRealTime;
+      previousRealTime = realTime;
+      setLiveTime(realTime);
+      if (active && playing) {
+        const next = simulationTimeRef.current + elapsed * speed;
+        simulationTimeRef.current = next;
+        setSimulationTime(next);
+        writeSimulationUrl(next);
+      }
+    }, 1000);
     return () => window.clearInterval(timer);
-  }, []);
-  return now;
+  }, [active, playing, speed]);
+
+  return {
+    active,
+    now: active ? simulationTime : liveTime,
+    playing,
+    speed,
+    seek: (instant) => {
+      simulationTimeRef.current = instant;
+      setActive(true);
+      setSimulationTime(instant);
+      writeSimulationUrl(instant);
+    },
+    togglePlaying: () => setPlaying((value) => !value),
+    setSpeed,
+    returnToLive: () => {
+      setPlaying(false);
+      setActive(false);
+      setLiveTime(Date.now());
+      writeSimulationUrl(null);
+    },
+  };
 }
 
 function BrandMark() {
@@ -148,7 +230,128 @@ function StaleNotice() {
   return <p className="stale-notice" role="status">Schedule may be out of date</p>;
 }
 
-function ScreenSelector({ rooms, stale }: { rooms: DisplayRoom[]; stale: boolean }) {
+function screenHref(path: string, simulation: SimulationClock): string {
+  const url = new URL(window.location.href);
+  url.pathname = path;
+  if (simulation.active) {
+    url.searchParams.set(SIMULATION_PARAMETER, formatOsloDateTimeInput(simulation.now, true));
+  } else {
+    url.searchParams.delete(SIMULATION_PARAMETER);
+  }
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function SimulationControls({
+  snapshot,
+  simulation,
+  switchHref,
+  switchLabel,
+}: {
+  snapshot: ScheduleSnapshot;
+  simulation: SimulationClock;
+  switchHref?: string;
+  switchLabel?: string;
+}) {
+  if (!simulation.active) return null;
+
+  const scheduleBoundaries = [...new Set(snapshot.sessions.flatMap((session) => [
+    parseSessionInstant(session.startsAt),
+    parseSessionInstant(session.endsAt),
+  ]).filter((instant): instant is number => instant !== null))].sort((left, right) => left - right);
+  const previousBoundary = scheduleBoundaries.filter((instant) => instant < simulation.now).at(-1);
+  const nextBoundary = scheduleBoundaries.find((instant) => instant > simulation.now);
+  const sessionInstants = snapshot.sessions.flatMap((session) => [
+    parseSessionInstant(session.startsAt),
+    parseSessionInstant(session.endsAt),
+  ]).filter((instant): instant is number => instant !== null);
+  const simulationDay = formatOsloDateTimeInput(simulation.now).slice(0, 10);
+  const firstDay = sessionInstants.length > 0
+    ? formatOsloDateTimeInput(Math.min(...sessionInstants)).slice(0, 10)
+    : simulationDay;
+  const lastDay = sessionInstants.length > 0
+    ? formatOsloDateTimeInput(Math.max(...sessionInstants)).slice(0, 10)
+    : simulationDay;
+  const nextDate = (date: string) => {
+    const day = new Date(`${date}T00:00:00Z`);
+    day.setUTCDate(day.getUTCDate() + 1);
+    return day.toISOString().slice(0, 10);
+  };
+  const minimum = parseSessionInstant(`${firstDay}T00:00:00`) ?? Math.min(...sessionInstants, simulation.now);
+  const maximum = (parseSessionInstant(`${nextDate(lastDay)}T00:00:00`) ?? minimum + 86_400_000) - 1000;
+  const scrubberTime = Math.min(maximum, Math.max(minimum, simulation.now));
+
+  return (
+    <section className="simulation-controls" aria-label="Simulation controls">
+      <div className="simulation-controls-heading">
+        <p className="simulation-mode-label" role="status">SIMULATION MODE · NOT LIVE</p>
+        <div className="simulation-links">
+          {switchHref && switchLabel && <a href={screenHref(switchHref, simulation)}>{switchLabel}</a>}
+          <button type="button" onClick={simulation.returnToLive}>Return to live</button>
+        </div>
+      </div>
+      <div className="simulation-controls-body">
+        <label className="simulation-time-control">
+          <span>Simulation date and time</span>
+          <input
+            type="datetime-local"
+            step="60"
+            value={formatOsloDateTimeInput(simulation.now)}
+            onChange={(event) => {
+              const instant = parseSessionInstant(event.currentTarget.value);
+              if (instant !== null) simulation.seek(instant);
+            }}
+          />
+        </label>
+        <label className="simulation-scrubber-control">
+          <span>Day scrubber</span>
+          <input
+            aria-label="Day scrubber"
+            type="range"
+            min={minimum}
+            max={maximum}
+            step={60_000}
+            value={scrubberTime}
+            onChange={(event) => simulation.seek(Number(event.currentTarget.value))}
+          />
+        </label>
+        <div className="simulation-transport">
+          <button type="button" disabled={previousBoundary === undefined} onClick={() => previousBoundary !== undefined && simulation.seek(previousBoundary)}>
+            Previous transition
+          </button>
+          <button type="button" onClick={simulation.togglePlaying}>{simulation.playing ? 'Pause' : 'Play'}</button>
+          <button type="button" disabled={nextBoundary === undefined} onClick={() => nextBoundary !== undefined && simulation.seek(nextBoundary)}>
+            Next transition
+          </button>
+        </div>
+        <fieldset className="simulation-speed-control">
+          <legend>Playback speed</legend>
+          {PLAYBACK_SPEEDS.map((playbackSpeed) => (
+            <button
+              type="button"
+              key={playbackSpeed}
+              aria-pressed={simulation.speed === playbackSpeed}
+              onClick={() => simulation.setSpeed(playbackSpeed)}
+            >
+              {playbackSpeed}×
+            </button>
+          ))}
+        </fieldset>
+      </div>
+    </section>
+  );
+}
+
+function ScreenSelector({
+  rooms,
+  stale,
+  snapshot,
+  simulation,
+}: {
+  rooms: DisplayRoom[];
+  stale: boolean;
+  snapshot: ScheduleSnapshot;
+  simulation: SimulationClock;
+}) {
   return (
     <main className="selector-page">
       <header className="selector-header">
@@ -160,12 +363,13 @@ function ScreenSelector({ rooms, stale }: { rooms: DisplayRoom[]; stale: boolean
         </div>
       </header>
       {stale && <StaleNotice />}
+      <SimulationControls snapshot={snapshot} simulation={simulation} />
       {rooms.length > 0 ? (
         <nav aria-label="Room screens">
           <ul className="room-list">
             {rooms.map((room, index) => (
               <li key={room.id}>
-                <a className="room-link" href={`/room/${encodeURIComponent(room.id)}`}>
+                <a className="room-link" href={screenHref(`/room/${encodeURIComponent(room.id)}`, simulation)}>
                   <span className="room-number">{String(index + 1).padStart(2, '0')}</span>
                   <span className="room-link-name">{room.name}</span>
                   <span className="room-link-arrow" aria-hidden="true">↗</span>
@@ -178,7 +382,7 @@ function ScreenSelector({ rooms, stale }: { rooms: DisplayRoom[]; stale: boolean
         <p className="empty-rooms">No room screens are available yet.</p>
       )}
       <nav className="common-screen-link" aria-label="Other screens">
-        <a className="room-link" href="/common">
+        <a className="room-link" href={screenHref('/common', simulation)}>
           <span className="room-number">↗</span>
           <span className="room-link-name">Common-area display</span>
           <span className="room-link-arrow" aria-hidden="true">↗</span>
@@ -283,8 +487,18 @@ function UpcomingAgenda({ sessions }: { sessions: DisplaySession[] }) {
   );
 }
 
-function RoomDisplay({ snapshot, room, stale }: { snapshot: ScheduleSnapshot; room: DisplayRoom; stale: boolean }) {
-  const now = useLocalClock();
+function RoomDisplay({
+  snapshot,
+  room,
+  stale,
+  simulation,
+}: {
+  snapshot: ScheduleSnapshot;
+  room: DisplayRoom;
+  stale: boolean;
+  simulation: SimulationClock;
+}) {
+  const now = simulation.now;
   const display = getRoomDisplayState(snapshot, room.id, now);
   const sessionPhase = display.phase === 'empty' || display.phase === 'ended' || display.phase === 'complete'
     ? null
@@ -305,8 +519,14 @@ function RoomDisplay({ snapshot, room, stale }: { snapshot: ScheduleSnapshot; ro
           <time className="display-clock" aria-label="Oslo local time" dateTime={new Date(now).toISOString()}>
             {formatOsloTime(now)}
           </time>
-          <span className="clock-caption">LOCAL TIME · TRONDHEIM</span>
+          <span className="clock-caption">{simulation.active ? 'SIMULATED TIME · TRONDHEIM' : 'LOCAL TIME · TRONDHEIM'}</span>
         </div>
+        <SimulationControls
+          snapshot={snapshot}
+          simulation={simulation}
+          switchHref="/common"
+          switchLabel="Common-area view"
+        />
         {stale && <StaleNotice />}
       </header>
 
@@ -324,7 +544,8 @@ function RoomDisplay({ snapshot, room, stale }: { snapshot: ScheduleSnapshot; ro
       </section>
 
       <footer className="display-footer">
-        <a href="/">All room screens</a>
+        <a href={screenHref('/', simulation)}>All room screens</a>
+        <a href={screenHref('/common', simulation)}>Common-area display</a>
         <span className="footer-brand">TDC 2026</span>
         <span>Europe/Oslo</span>
       </footer>
@@ -379,32 +600,42 @@ function CommonRoomCard({ display, index }: { display: CommonRoomDisplay; index:
   );
 }
 
-function CommonDisplay({ snapshot, stale }: { snapshot: ScheduleSnapshot; stale: boolean }) {
-  const now = useLocalClock();
+function CommonDisplay({
+  snapshot,
+  stale,
+  simulation,
+}: {
+  snapshot: ScheduleSnapshot;
+  stale: boolean;
+  simulation: SimulationClock;
+}) {
+  const now = simulation.now;
   const display = getCommonDisplayState(snapshot, now);
 
   if (display.phase === 'complete') {
     return (
-      <main className="state-page" aria-live="polite">
+      <main className="state-page simulation-state" aria-live="polite">
         <BrandMark />
         <div className="state-message">
           <p className="eyebrow">TDC 2026 · COMMON AREAS</p>
           <h1>Programme complete</h1>
           <p>The conference programme has ended for today.</p>
         </div>
+        <SimulationControls snapshot={snapshot} simulation={simulation} switchHref="/" switchLabel="Choose a room" />
       </main>
     );
   }
 
   if (display.phase === 'empty') {
     return (
-      <main className="state-page" aria-live="polite">
+      <main className="state-page simulation-state" aria-live="polite">
         <BrandMark />
         <div className="state-message">
           <p className="eyebrow">TDC 2026 · COMMON AREAS</p>
           <h1>No talk rooms scheduled</h1>
           <p>There are no rooms with talks in the current conference programme.</p>
         </div>
+        <SimulationControls snapshot={snapshot} simulation={simulation} switchHref="/" switchLabel="Choose a room" />
       </main>
     );
   }
@@ -422,8 +653,9 @@ function CommonDisplay({ snapshot, stale }: { snapshot: ScheduleSnapshot; stale:
           <time className="common-clock" aria-label="Oslo local time" dateTime={new Date(now).toISOString()}>
             {formatOsloTime(now)}
           </time>
-          <span className="clock-caption">LOCAL TIME · TRONDHEIM</span>
+          <span className="clock-caption">{simulation.active ? 'SIMULATED TIME · TRONDHEIM' : 'LOCAL TIME · TRONDHEIM'}</span>
         </div>
+        <SimulationControls snapshot={snapshot} simulation={simulation} switchHref="/" switchLabel="Choose a room" />
         {stale && <StaleNotice />}
       </header>
 
@@ -443,7 +675,7 @@ function CommonDisplay({ snapshot, stale }: { snapshot: ScheduleSnapshot; stale:
       </section>
 
       <footer className="common-footer">
-        <a href="/">All room screens</a>
+        <a href={screenHref('/', simulation)}>All room screens</a>
         <span className="footer-brand">TDC 2026</span>
         <span>Europe/Oslo</span>
       </footer>
@@ -467,12 +699,13 @@ function UnknownRoom({ roomId }: { roomId: string }) {
 
 function App() {
   const state = useSchedule();
+  const simulation = useSimulationClock();
   const route = /^\/room\/([^/]+)\/?$/.exec(window.location.pathname);
   const commonRoute = /^\/common\/?$/.test(window.location.pathname);
 
   if (!state.snapshot || state.loading || state.error) return <ScheduleStateMessage state={state} />;
-  if (commonRoute) return <CommonDisplay snapshot={state.snapshot} stale={state.stale} />;
-  if (!route) return <ScreenSelector rooms={state.snapshot.rooms} stale={state.stale} />;
+  if (commonRoute) return <CommonDisplay snapshot={state.snapshot} stale={state.stale} simulation={simulation} />;
+  if (!route) return <ScreenSelector rooms={state.snapshot.rooms} stale={state.stale} snapshot={state.snapshot} simulation={simulation} />;
 
   let roomId = route[1];
   try {
@@ -481,7 +714,9 @@ function App() {
     return <UnknownRoom roomId={route[1]} />;
   }
   const room = state.snapshot.rooms.find((candidate) => candidate.id === roomId);
-  return room ? <RoomDisplay snapshot={state.snapshot} room={room} stale={state.stale} /> : <UnknownRoom roomId={roomId} />;
+  return room
+    ? <RoomDisplay snapshot={state.snapshot} room={room} stale={state.stale} simulation={simulation} />
+    : <UnknownRoom roomId={roomId} />;
 }
 
 createRoot(document.getElementById('root')!).render(<App />);

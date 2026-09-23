@@ -187,6 +187,53 @@ a { color: inherit; }
 .upcoming-agenda time { color: var(--yellow); font-size: clamp(0.85rem, 1.35vw, 1rem); font-variant-numeric: tabular-nums; font-weight: 700; }
 .upcoming-agenda li span { overflow-wrap: anywhere; color: #dedede; font-size: clamp(0.9rem, 1.5vw, 1.15rem); line-height: 1.25; }
 .stale-notice { width: fit-content; margin: 0.55rem 0 0; padding: 0.4rem 0.65rem; border: 1px solid var(--yellow); color: var(--yellow); font-size: 0.78rem; }
+.simulation-controls {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(181, 240, 180, 0.55);
+  background: var(--surface);
+}
+.simulation-controls-heading, .simulation-links, .simulation-transport { display: flex; align-items: center; gap: 0.55rem; }
+.simulation-controls-heading { justify-content: space-between; }
+.simulation-mode-label { margin: 0; color: var(--mint); font-size: 0.72rem; font-weight: 900; letter-spacing: 0.12em; }
+.simulation-links a, .simulation-links button, .simulation-transport button, .simulation-speed-control button {
+  min-height: 2.15rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid rgba(181, 240, 180, 0.4);
+  border-radius: 0;
+  background: #171717;
+  color: #f0f0f0;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+.simulation-links a:hover, .simulation-links button:hover, .simulation-transport button:hover, .simulation-speed-control button:hover { border-color: var(--mint); color: var(--mint); }
+.simulation-links button, .simulation-transport button:disabled { cursor: default; }
+.simulation-transport button:disabled { opacity: 0.45; }
+.simulation-controls button:focus-visible, .simulation-controls a:focus-visible, .simulation-controls input:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+.simulation-controls-body { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(11rem, 1.2fr) auto auto; align-items: end; gap: 0.7rem 1rem; }
+.simulation-time-control, .simulation-scrubber-control { display: flex; min-width: 0; flex-direction: column; gap: 0.35rem; }
+.simulation-time-control > span, .simulation-scrubber-control > span, .simulation-speed-control legend {
+  color: #b6b6b6;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.simulation-time-control input { width: 100%; min-width: 0; min-height: 2.2rem; padding: 0.35rem 0.55rem; border: 1px solid var(--line); border-radius: 0; background: #121212; color: #f0f0f0; font: inherit; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.simulation-scrubber-control input { width: 100%; min-width: 0; margin: 0.4rem 0 0.5rem; accent-color: var(--mint); }
+.simulation-transport { justify-content: center; }
+.simulation-speed-control { display: flex; align-items: center; gap: 0.35rem; min-width: 0; margin: 0; padding: 0; border: 0; }
+.simulation-speed-control legend { float: left; width: 100%; margin-bottom: 0.35rem; }
+.simulation-speed-control button { min-width: 2.8rem; }
+.simulation-speed-control button[aria-pressed="true"] { border-color: var(--yellow); background: var(--yellow); color: var(--ink); }
 .display-footer { align-items: center; margin-top: 0; }
 .display-footer a { color: #c1c1c1; text-decoration: none; }
 .display-footer a:hover { color: var(--mint); }
@@ -291,6 +338,12 @@ a { color: inherit; }
   .common-clock-wrap { grid-column: 2; grid-row: 1; }
   .common-grid { grid-auto-rows: minmax(11rem, auto); }
   .common-footer { flex-direction: column; align-items: flex-start; }
+  .simulation-controls-heading { align-items: flex-start; flex-direction: column; }
+  .simulation-controls-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .simulation-time-control, .simulation-scrubber-control { grid-column: 1 / -1; }
+  .simulation-transport { grid-column: 1 / -1; justify-content: space-between; }
+  .simulation-transport button { flex: 1; }
+  .simulation-speed-control { grid-column: 1 / -1; }
 }
 
 @media (max-height: 900px) and (orientation: portrait) {
