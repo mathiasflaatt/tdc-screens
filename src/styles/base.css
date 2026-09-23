@@ -123,6 +123,7 @@ h1, h2, h3 { font-family: var(--font-family-display); font-weight: var(--font-we
   padding-bottom: var(--spacing-8);
   border-bottom: 1px solid var(--color-border);
 }
+.kiosk-header--untitled { grid-template-columns: auto minmax(0, 1fr); }
 .kiosk-header .tdc-wordmark { --wordmark-size: 4.5rem; }
 .kiosk-title {
   margin: 0;

@@ -16,6 +16,10 @@ export type DisplaySession = {
   speakers: DisplaySpeaker[];
   isServiceSession: boolean;
   isPlenumSession: boolean;
+  /** Sessionize "Main tag" category, e.g. "Architecture". */
+  mainTag?: string;
+  /** Sessionize "Language" category, e.g. "Norwegian". */
+  language?: string;
 };
 
 export type ScheduleSnapshot = {
@@ -59,6 +63,22 @@ export type CommonDisplayState = {
   /** Shared break/lunch and plenary notices, shown once above the room columns. */
   notices: CommonNotice[];
 };
+
+/** Largest rooms first, so the common screens steer people toward the most seats. Matched by normalised name. */
+const ROOM_CAPACITY_ORDER = ['cosmos12', 'aurora', 'livingroom', 'cosmos3ab', 'cosmos3cd', 'andromeda'];
+
+function capacityRank(room: DisplayRoom): number {
+  const rank = ROOM_CAPACITY_ORDER.indexOf(room.name.toLocaleLowerCase().replace(/[^a-z0-9]/g, ''));
+  return rank === -1 ? ROOM_CAPACITY_ORDER.length : rank;
+}
+
+/** Rooms ordered by capacity; unknown rooms follow in their original order. */
+export function sortRoomsByCapacity(rooms: DisplayRoom[]): DisplayRoom[] {
+  return rooms
+    .map((room, index) => ({ room, index }))
+    .sort((left, right) => capacityRank(left.room) - capacityRank(right.room) || left.index - right.index)
+    .map(({ room }) => room);
+}
 
 type TimedSession = { session: DisplaySession; start: number; end: number };
 
@@ -248,7 +268,7 @@ export function getCommonDisplayState(snapshot: ScheduleSnapshot, now: number): 
   if (now >= programEnd) return { phase: 'complete', rooms: [], notices: [] };
 
   const talkRoomIds = new Set(talks.map(({ session }) => session.roomId));
-  const rooms = snapshot.rooms.filter((room) => talkRoomIds.has(room.id));
+  const rooms = sortRoomsByCapacity(snapshot.rooms.filter((room) => talkRoomIds.has(room.id)));
   if (rooms.length === 0) return { phase: 'empty', rooms: [], notices: [] };
 
   const programStart = Math.min(...talks.map(({ start }) => start));

@@ -409,7 +409,9 @@ test('shows kiosk header parts without selector chrome, footer, or date', async 
   await page.goto('/room/42');
 
   const header = page.getByRole('main').locator('header');
-  await expect(header.getByRole('heading', { name: 'Andromeda', level: 1 })).toBeVisible();
+  const roomName = page.getByRole('heading', { name: 'Andromeda', level: 1 });
+  await expect(roomName).toBeVisible();
+  await expect(header.getByRole('heading')).toHaveCount(0);
   await expect(header.getByRole('img', { name: 'TDC' })).toBeVisible();
   await expect(header.getByLabel('Oslo local time')).toHaveText('10:15');
   await expect(page.getByText('All room screens')).toHaveCount(0);
@@ -419,14 +421,40 @@ test('shows kiosk header parts without selector chrome, footer, or date', async 
   await expect(page.getByRole('contentinfo')).toHaveCount(0);
   await expect(page.getByRole('link')).toHaveCount(0);
 
-  const [wordmark, title, clock] = await Promise.all([
+  const [headerBox, wordmark, clock, title, card] = await Promise.all([
+    header.boundingBox(),
     header.getByRole('img', { name: 'TDC' }).boundingBox(),
-    header.getByRole('heading', { name: 'Andromeda' }).boundingBox(),
     header.getByLabel('Oslo local time').boundingBox(),
+    roomName.boundingBox(),
+    page.getByRole('article').first().boundingBox(),
   ]);
-  expect(title!.x).toBeLessThan(wordmark!.x);
+  // Wordmark leads the header, clock trails it, and the room name sits between header and featured card.
   expect(clock!.x).toBeGreaterThan(wordmark!.x + wordmark!.width);
-  expect(Math.abs(wordmark!.x + wordmark!.width / 2 - 540)).toBeLessThan(2);
+  expect(Math.abs(title!.x - wordmark!.x)).toBeLessThan(2);
+  const headerBottom = headerBox!.y + headerBox!.height;
+  expect(title!.y).toBeGreaterThanOrEqual(headerBottom);
+  expect(title!.y - headerBottom).toBeLessThan(card!.y - (title!.y + title!.height));
+});
+
+test('shows the main tag and language on the featured card only', async ({ page }) => {
+  const tagged = structuredClone(schedule);
+  tagged.sessions[0] = { ...tagged.sessions[0], mainTag: 'Architecture', language: 'Norwegian' } as typeof tagged.sessions[0];
+  tagged.sessions[1] = { ...tagged.sessions[1], mainTag: 'Frontend', language: 'English' } as typeof tagged.sessions[1];
+  await page.route('**/api/schedule*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(tagged) }),
+  );
+  await page.goto('/room/42');
+
+  const tags = page.getByRole('article').getByRole('list', { name: 'Session tags' });
+  await expect(tags.getByRole('listitem')).toHaveText(['Architecture', 'Norwegian']);
+  await expect(page.getByText('Frontend')).toHaveCount(0);
+});
+
+test('omits the tag row when a session has no tags', async ({ page }) => {
+  await page.goto('/room/42');
+
+  await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Session tags' })).toHaveCount(0);
 });
 
 test('lists the full rest-of-day room agenda, including breaks', async ({ page }) => {
@@ -503,9 +531,10 @@ test('shows what is on in every other talk room in the elsewhere strip', async (
   await page.goto('/room/42');
 
   const elsewhere = page.getByRole('region', { name: 'Elsewhere now' });
+  // Largest rooms first: Living room outranks Cosmos 3AB.
   await expect(elsewhere.getByRole('listitem')).toHaveText([
-    /Cosmos 3AB\s*Now\s*Tracing the client with OpenTelemetry/,
     /Living room\s*Next 11:00\s*Gammal font, nye kurver/,
+    /Cosmos 3AB\s*Now\s*Tracing the client with OpenTelemetry/,
   ]);
   await expect(elsewhere.getByText('Andromeda')).toHaveCount(0);
 });

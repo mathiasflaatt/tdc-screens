@@ -13,6 +13,8 @@ import { SimulationControls } from './SimulationControls';
 import type { SimulationClock } from '../hooks/useSimulationClock';
 
 const CANVAS_LABEL = 'Common-area conference overview';
+/** Keep the later list short so the columns stay scannable at a distance. */
+const MAX_LATER_TALKS = 3;
 
 const NOTICE_LABEL: Record<CommonNotice['type'], string> = {
   break: 'Break',
@@ -81,16 +83,18 @@ function RoomColumn({ display, index }: { display: CommonRoomDisplay; index: num
   return (
     <article className={`room-column room-column--${display.phase}`} aria-labelledby={headingId}>
       <h2 id={headingId} className="room-column-name">{display.room.name}</h2>
-      <NowCard display={display} />
-      <NextCard display={display} />
-      {!hasTalks && (
-        <p className="room-column-empty">
-          {display.phase === 'empty' ? 'No talks are scheduled in this room.' : 'No more talks today'}
-        </p>
-      )}
+      <div className="room-column-cards">
+        <NowCard display={display} />
+        <NextCard display={display} />
+        {!hasTalks && (
+          <p className="room-column-empty">
+            {display.phase === 'empty' ? 'No talks are scheduled in this room.' : 'No more talks today'}
+          </p>
+        )}
+      </div>
       {display.later.length > 0 && (
         <ol className="room-column-later" aria-label={`Later in ${display.room.name}`}>
-          {display.later.map((session) => (
+          {display.later.slice(0, MAX_LATER_TALKS).map((session) => (
             <li key={session.id}>
               <time dateTime={session.startsAt}>{formatSessionStart(session)}</time>
               <span>{session.title}</span>
@@ -119,7 +123,7 @@ export function CommonDisplay({ snapshot, stale, simulation }: CommonDisplayProp
 
   return (
     <KioskCanvas {...COMMON_CANVAS} className="common-canvas" label={CANVAS_LABEL}>
-      <KioskHeader title="Common areas" now={now} stale={stale} />
+      <KioskHeader now={now} stale={stale} />
       {display.phase === 'complete' && (
         <CommonMessage heading="Programme complete" detail="The conference programme has ended for today." />
       )}

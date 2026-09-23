@@ -34,13 +34,13 @@ export function StaleNotice() {
   return <p className="stale-notice" role="status">Schedule may be out of date</p>;
 }
 
-type KioskHeaderProps = { title: string; now: number; stale: boolean };
+type KioskHeaderProps = { title?: string; now: number; stale: boolean };
 
-/** Room name left, large wordmark centred, Oslo clock right. */
+/** Title left, large wordmark centred, Oslo clock right; without a title the wordmark leads. */
 export function KioskHeader({ title, now, stale }: KioskHeaderProps) {
   return (
-    <header className="kiosk-header">
-      <h1 className="kiosk-title">{title}</h1>
+    <header className={title ? 'kiosk-header' : 'kiosk-header kiosk-header--untitled'}>
+      {title && <h1 className="kiosk-title">{title}</h1>}
       <Wordmark label="TDC" />
       <div className="kiosk-clock-wrap">
         <time className="kiosk-clock" aria-label="Oslo local time" dateTime={new Date(now).toISOString()}>

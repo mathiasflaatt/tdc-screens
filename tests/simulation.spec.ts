@@ -55,7 +55,7 @@ test('a bare test URL starts at the current wall time on the feed conference dat
   await page.goto('/common?test=true');
 
   await expect(page.getByLabel('Oslo local time')).toHaveText('10:15');
-  await expect(page.getByRole('heading', { name: 'Common Areas' })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Common-area conference overview' })).toBeVisible();
   await expect(page.getByLabel('Oslo local time')).toHaveAttribute('datetime', '2026-10-19T08:15:00.000Z');
   await expect(page).toHaveURL(/\/common\?test=true&at=10%3A15/);
 
@@ -115,7 +115,7 @@ test('switching views keeps the preview position and returning to live restores 
   await page.goto('/room/42?test=true&at=10%3A15&speed=10');
 
   await page.getByRole('link', { name: 'Common-area view' }).click();
-  await expect(page.getByRole('heading', { name: 'Common Areas' })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Common-area conference overview' })).toBeVisible();
   await expect(page.getByLabel('Oslo local time')).toHaveText('10:15');
   await expect(page).toHaveURL(/\/common\?test=true&at=10%3A15&speed=10/);
 

@@ -32,6 +32,18 @@ const STATUS_LABEL: Record<SessionPhase, string> = {
 /** Above this many agenda rows, rows switch to a compact single-line layout. */
 const COMPACT_AGENDA_ROWS = 6;
 
+function SessionTags({ session }: { session: DisplaySession }) {
+  const tags = [session.mainTag, session.language].filter((tag): tag is string => Boolean(tag));
+  if (tags.length === 0) return null;
+  return (
+    <ul className="session-tags" aria-label="Session tags">
+      {tags.map((tag, index) => (
+        <li key={tag} className={index === 0 && session.mainTag ? 'session-tag session-tag--main' : 'session-tag'}>{tag}</li>
+      ))}
+    </ul>
+  );
+}
+
 function FeaturedSession({ session, phase }: { session: DisplaySession; phase: SessionPhase }) {
   return (
     <article className={`featured-card featured-card--${phase}`} aria-live="polite">
@@ -40,6 +52,7 @@ function FeaturedSession({ session, phase }: { session: DisplaySession; phase: S
         <time className="featured-time" dateTime={session.startsAt}>{formatSessionRange(session)}</time>
       </div>
       <h2 className="featured-title">{session.title}</h2>
+      <SessionTags session={session} />
       {phase === 'before' && (
         <p className="featured-date">{formatOsloDate(parseSessionInstant(session.startsAt) ?? Date.now())}</p>
       )}
@@ -157,7 +170,8 @@ export function RoomDisplay({ snapshot, room, stale, simulation }: RoomDisplayPr
 
   return (
     <KioskCanvas {...ROOM_CANVAS} className="display-page room-canvas" label={`${room.name} room display`}>
-      <KioskHeader title={room.name} now={now} stale={stale} />
+      <KioskHeader now={now} stale={stale} />
+      <h1 className="room-name">{room.name}</h1>
       <section ref={stageRef} className="room-body" aria-label={`Live schedule for ${room.name}`}>
         <RoomSchedule snapshot={snapshot} roomId={room.id} display={shown.display} now={shown.now} />
         {duckRun && <DuckActor key={duckRun.id} run={duckRun} stageRef={stageRef} />}

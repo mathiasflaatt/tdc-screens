@@ -23,7 +23,21 @@ const gridSmart = [
   },
 ];
 
-const sessionFeed = [{ id: 'talk-1', title: 'Enriched talk title', speakers: ['speaker-1'] }];
+// Sessionize serves the Sessions view grouped.
+const sessionFeed = [{
+  groupId: null,
+  groupName: 'All',
+  sessions: [{
+    id: 'talk-1',
+    title: 'Enriched talk title',
+    speakers: ['speaker-1'],
+    categories: [
+      { id: 1, name: 'Language', categoryItems: [{ id: 11, name: 'Norwegian' }] },
+      { id: 2, name: 'Additional tags', categoryItems: [{ id: 21, name: 'Backend' }] },
+      { id: 3, name: 'Main tag', categoryItems: [{ id: 31, name: 'Architecture' }] },
+    ],
+  }],
+}];
 const speakerFeed = [{ id: 'speaker-1', fullName: 'Mina Example', profilePicture: 'https://cdn.example.test/mina.webp' }];
 
 test('builds the same-origin schedule from the fixed Sessionize feeds and ignores upstream URL input', async () => {
@@ -83,6 +97,8 @@ test('builds the same-origin schedule from the fixed Sessionize feeds and ignore
       speakers: [{ id: 'speaker-1', name: 'Mina Example', portraitUrl: 'https://cdn.example.test/mina.webp' }],
       isServiceSession: false,
       isPlenumSession: false,
+      mainTag: 'Architecture',
+      language: 'Norwegian',
     },
   ]);
 

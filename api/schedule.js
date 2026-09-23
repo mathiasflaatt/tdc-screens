@@ -9,7 +9,7 @@ const REQUEST_TIMEOUT_MS = 10_000;
 
 /** @typedef {{ id: string, name: string, portraitUrl?: string }} Speaker */
 /** @typedef {{ id: string, name: string }} Room */
-/** @typedef {{ id: string, roomId: string, room: string, title: string, startsAt: string, endsAt: string, speakers: Speaker[], isServiceSession: boolean, isPlenumSession: boolean }} DisplaySession */
+/** @typedef {{ id: string, roomId: string, room: string, title: string, startsAt: string, endsAt: string, speakers: Speaker[], isServiceSession: boolean, isPlenumSession: boolean, mainTag?: string, language?: string }} DisplaySession */
 /** @typedef {{ rooms: Room[], sessions: DisplaySession[], fetchedAt: string }} ScheduleSnapshot */
 
 /** @param {unknown} value @param {string} label */
@@ -57,6 +57,26 @@ function speakerPortraitUrl(speaker) {
   return undefined;
 }
 
+/**
+ * First item name of a named Sessionize category, e.g. "Main tag" or "Language".
+ * @param {Record<string, unknown> | undefined} detail @param {string} categoryName
+ */
+function categoryItem(detail, categoryName) {
+  if (!detail || !Array.isArray(detail.categories)) return undefined;
+  const category = detail.categories.find((candidate) => isRecord(candidate) && asText(candidate.name) === categoryName);
+  if (!isRecord(category) || !Array.isArray(category.categoryItems)) return undefined;
+  const item = category.categoryItems.find((candidate) => isRecord(candidate) && asText(candidate.name));
+  return isRecord(item) ? asText(item.name) : undefined;
+}
+
+/**
+ * Sessionize serves the Sessions view either flat or grouped as `[{ groupId, sessions: [...] }]`.
+ * @param {unknown[]} feed
+ */
+function flattenSessionGroups(feed) {
+  return feed.flatMap((entry) => (isRecord(entry) && Array.isArray(entry.sessions) ? entry.sessions : [entry]));
+}
+
 /** @param {string} id @param {string} name @param {unknown} source */
 function makeSpeaker(id, name, source) {
   const portraitUrl = speakerPortraitUrl(source);
@@ -74,7 +94,7 @@ export function normaliseSessionizeFeeds(feeds, fetchedAt = new Date()) {
   const days = requireArray(feeds.gridSmart, 'GridSmart');
   if (days.length === 0) throw new Error('Sessionize GridSmart feed contained no schedule days');
 
-  const sessionDetails = Array.isArray(feeds.sessions) ? feeds.sessions : [];
+  const sessionDetails = Array.isArray(feeds.sessions) ? flattenSessionGroups(feeds.sessions) : [];
   const speakerDetails = Array.isArray(feeds.speakers) ? feeds.speakers : [];
   /** @type {Map<string, Record<string, unknown>>} */
   const detailsById = new Map();
@@ -143,6 +163,8 @@ export function normaliseSessionizeFeeds(feeds, fetchedAt = new Date()) {
         });
 
         const normalizedRoom = { id: roomId, name: roomName };
+        const mainTag = categoryItem(detail, 'Main tag');
+        const language = categoryItem(detail, 'Language');
         const sessionKey = `${roomId}:${id}:${startsAt}`;
         rooms.set(roomId, normalizedRoom);
         schedule.set(sessionKey, {
@@ -155,6 +177,8 @@ export function normaliseSessionizeFeeds(feeds, fetchedAt = new Date()) {
           speakers,
           isServiceSession: gridSession.isServiceSession === true,
           isPlenumSession: gridSession.isPlenumSession === true,
+          ...(mainTag && { mainTag }),
+          ...(language && { language }),
         });
       }
     }
