@@ -188,19 +188,19 @@ function useSimulationClock(): SimulationClock {
   };
 }
 
-function BrandMark() {
+function BrandMark({ simulation }: { simulation?: SimulationClock } = {}) {
   return (
-    <a className="brand-mark" href="/" aria-label="TDC 2026 conference displays">
+    <a className="brand-mark" href={simulation ? screenHref('/', simulation) : '/'} aria-label="TDC 2026 conference displays">
       <span>TDC</span><i aria-hidden="true" />
     </a>
   );
 }
 
-function ScheduleStateMessage({ state }: { state: ScheduleState }) {
+function ScheduleStateMessage({ state, simulation }: { state: ScheduleState; simulation: SimulationClock }) {
   if (state.loading) {
     return (
       <main className="state-page" aria-live="polite">
-        <BrandMark />
+        <BrandMark simulation={simulation} />
         <div className="state-message">
           <p className="eyebrow">TDC 2026</p>
           <h1>Loading the schedule</h1>
@@ -213,7 +213,7 @@ function ScheduleStateMessage({ state }: { state: ScheduleState }) {
   if (state.error || !state.snapshot) {
     return (
       <main className="state-page" role="alert">
-        <BrandMark />
+        <BrandMark simulation={simulation} />
         <div className="state-message">
           <p className="eyebrow">TDC 2026</p>
           <h1>Schedule unavailable</h1>
@@ -254,16 +254,13 @@ function SimulationControls({
 }) {
   if (!simulation.active) return null;
 
-  const scheduleBoundaries = [...new Set(snapshot.sessions.flatMap((session) => [
-    parseSessionInstant(session.startsAt),
-    parseSessionInstant(session.endsAt),
-  ]).filter((instant): instant is number => instant !== null))].sort((left, right) => left - right);
-  const previousBoundary = scheduleBoundaries.filter((instant) => instant < simulation.now).at(-1);
-  const nextBoundary = scheduleBoundaries.find((instant) => instant > simulation.now);
   const sessionInstants = snapshot.sessions.flatMap((session) => [
     parseSessionInstant(session.startsAt),
     parseSessionInstant(session.endsAt),
   ]).filter((instant): instant is number => instant !== null);
+  const scheduleBoundaries = [...new Set(sessionInstants)].sort((left, right) => left - right);
+  const previousBoundary = scheduleBoundaries.filter((instant) => instant < simulation.now).at(-1);
+  const nextBoundary = scheduleBoundaries.find((instant) => instant > simulation.now);
   const simulationDay = formatOsloDateTimeInput(simulation.now).slice(0, 10);
   const firstDay = sessionInstants.length > 0
     ? formatOsloDateTimeInput(Math.min(...sessionInstants)).slice(0, 10)
@@ -355,7 +352,7 @@ function ScreenSelector({
   return (
     <main className="selector-page">
       <header className="selector-header">
-        <BrandMark />
+        <BrandMark simulation={simulation} />
         <div className="selector-intro">
           <p className="eyebrow">Trondheim Developer Conference · 19 October 2026</p>
           <h1>Choose a screen</h1>
@@ -507,9 +504,9 @@ function RoomDisplay({
   const breakContext = display.context?.type === 'break' || display.context?.type === 'lunch';
 
   return (
-    <main className="display-page">
+    <main className="display-page" aria-label={`Room display for ${room.name}`}>
       <header className="display-header">
-        <BrandMark />
+        <BrandMark simulation={simulation} />
         <div className="display-room-name">
           <p className="eyebrow">ROOM DISPLAY</p>
           <h1>{room.name}</h1>
@@ -615,7 +612,7 @@ function CommonDisplay({
   if (display.phase === 'complete') {
     return (
       <main className="state-page simulation-state" aria-live="polite">
-        <BrandMark />
+        <BrandMark simulation={simulation} />
         <div className="state-message">
           <p className="eyebrow">TDC 2026 · COMMON AREAS</p>
           <h1>Programme complete</h1>
@@ -629,7 +626,7 @@ function CommonDisplay({
   if (display.phase === 'empty') {
     return (
       <main className="state-page simulation-state" aria-live="polite">
-        <BrandMark />
+        <BrandMark simulation={simulation} />
         <div className="state-message">
           <p className="eyebrow">TDC 2026 · COMMON AREAS</p>
           <h1>No talk rooms scheduled</h1>
@@ -643,7 +640,7 @@ function CommonDisplay({
   return (
     <main className="common-display" aria-label="Common-area conference overview">
       <header className="common-header">
-        <BrandMark />
+        <BrandMark simulation={simulation} />
         <div className="common-heading">
           <p className="eyebrow">TDC 2026 · COMMON AREA</p>
           <h1>Common Areas</h1>
@@ -683,15 +680,15 @@ function CommonDisplay({
   );
 }
 
-function UnknownRoom({ roomId }: { roomId: string }) {
+function UnknownRoom({ roomId, simulation }: { roomId: string; simulation: SimulationClock }) {
   return (
     <main className="state-page">
-      <BrandMark />
+      <BrandMark simulation={simulation} />
       <div className="state-message">
         <p className="eyebrow">ROOM {roomId}</p>
         <h1>Room not found</h1>
         <p>This room is not in the current conference schedule.</p>
-        <a className="back-link" href="/">Choose a screen <span aria-hidden="true">↗</span></a>
+        <a className="back-link" href={screenHref('/', simulation)}>Choose a screen <span aria-hidden="true">↗</span></a>
       </div>
     </main>
   );
@@ -703,7 +700,7 @@ function App() {
   const route = /^\/room\/([^/]+)\/?$/.exec(window.location.pathname);
   const commonRoute = /^\/common\/?$/.test(window.location.pathname);
 
-  if (!state.snapshot || state.loading || state.error) return <ScheduleStateMessage state={state} />;
+  if (!state.snapshot || state.loading || state.error) return <ScheduleStateMessage state={state} simulation={simulation} />;
   if (commonRoute) return <CommonDisplay snapshot={state.snapshot} stale={state.stale} simulation={simulation} />;
   if (!route) return <ScreenSelector rooms={state.snapshot.rooms} stale={state.stale} snapshot={state.snapshot} simulation={simulation} />;
 
@@ -711,12 +708,12 @@ function App() {
   try {
     roomId = decodeURIComponent(roomId);
   } catch {
-    return <UnknownRoom roomId={route[1]} />;
+    return <UnknownRoom roomId={route[1]} simulation={simulation} />;
   }
   const room = state.snapshot.rooms.find((candidate) => candidate.id === roomId);
   return room
     ? <RoomDisplay snapshot={state.snapshot} room={room} stale={state.stale} simulation={simulation} />
-    : <UnknownRoom roomId={roomId} />;
+    : <UnknownRoom roomId={roomId} simulation={simulation} />;
 }
 
 createRoot(document.getElementById('root')!).render(<App />);

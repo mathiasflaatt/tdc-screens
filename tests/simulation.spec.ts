@@ -94,6 +94,25 @@ test('switching views keeps the preview position and returning to live restores 
   await expect(page.getByLabel('Oslo local time')).toHaveText('10:16');
 });
 
+test('the TDC brand link keeps the active simulation when returning to screen selection', async ({ page }) => {
+  await page.goto('/room/42?simulate=2026-10-19T10%3A15%3A00');
+
+  await page.getByRole('link', { name: 'TDC 2026 conference displays' }).click();
+  await expect(page.getByRole('heading', { name: 'Choose a screen' })).toBeVisible();
+  await expect(page).toHaveURL(/\/?\?simulate=2026-10-19T10%3A15%3A00/);
+  await expect(page.getByRole('region', { name: 'Simulation controls' })).toBeVisible();
+});
+
+test('an unknown-room return link keeps the active simulation when choosing a screen', async ({ page }) => {
+  await page.goto('/room/missing?simulate=2026-10-19T10%3A15%3A00');
+
+  await expect(page.getByRole('heading', { name: 'Room not found' })).toBeVisible();
+  await page.getByRole('link', { name: /choose a screen/i }).click();
+  await expect(page.getByRole('heading', { name: 'Choose a screen' })).toBeVisible();
+  await expect(page).toHaveURL(/\/?\?simulate=2026-10-19T10%3A15%3A00/);
+  await expect(page.getByRole('region', { name: 'Simulation controls' })).toBeVisible();
+});
+
 test('playing at sixty times keeps the schedule refresh on its real five-minute cadence', async ({ page }) => {
   let requests = 0;
   await page.unroute('**/api/schedule*');
@@ -146,22 +165,31 @@ test('playback advances at one, ten, and sixty times the real elapsed time', asy
 test('simulation controls fit above the schedule on portrait and landscape displays', async ({ page }) => {
   await page.setViewportSize({ width: 1080, height: 1920 });
   await page.goto('/room/42?simulate=2026-10-19T10%3A15%3A00');
-  await expect(page.getByRole('region', { name: 'Simulation controls' })).toBeVisible();
-  const roomLayout = await page.evaluate(() => {
-    const main = document.querySelector('.display-page')!;
-    const controls = main.querySelector('.simulation-controls')!;
-    const scheduleArea = main.querySelector('.display-content')!;
-    const footer = main.querySelector('.display-footer')!;
-    return {
-      controlsBottom: controls.getBoundingClientRect().bottom,
-      scheduleTop: scheduleArea.getBoundingClientRect().top,
-      footerBottom: footer.getBoundingClientRect().bottom,
-      height: main.clientHeight,
-      scrollHeight: main.scrollHeight,
-      controlsBackground: getComputedStyle(controls).backgroundColor,
-      labelColor: getComputedStyle(controls.querySelector('.simulation-mode-label')!).color,
-    };
-  });
+  const roomMain = page.getByRole('main', { name: 'Room display for Andromeda' });
+  const roomControls = roomMain.getByRole('region', { name: 'Simulation controls' });
+  const roomSchedule = roomMain.getByRole('region', { name: 'Live schedule for Andromeda' });
+  const roomFooter = roomMain.getByText('Europe/Oslo', { exact: true });
+  await expect(roomControls).toBeVisible();
+  const [roomDimensions, roomControlsBox, roomScheduleBox, roomFooterBox, roomControlsBackground, roomLabelColor] = await Promise.all([
+    roomMain.evaluate((element) => ({ height: element.clientHeight, scrollHeight: element.scrollHeight })),
+    roomControls.boundingBox(),
+    roomSchedule.boundingBox(),
+    roomFooter.boundingBox(),
+    roomControls.evaluate((element) => getComputedStyle(element).backgroundColor),
+    roomControls.getByText('SIMULATION MODE · NOT LIVE', { exact: true }).evaluate((element) => getComputedStyle(element).color),
+  ]);
+  expect(roomControlsBox).not.toBeNull();
+  expect(roomScheduleBox).not.toBeNull();
+  expect(roomFooterBox).not.toBeNull();
+  const roomLayout = {
+    controlsBottom: roomControlsBox!.y + roomControlsBox!.height,
+    scheduleTop: roomScheduleBox!.y,
+    footerBottom: roomFooterBox!.y + roomFooterBox!.height,
+    height: roomDimensions.height,
+    scrollHeight: roomDimensions.scrollHeight,
+    controlsBackground: roomControlsBackground,
+    labelColor: roomLabelColor,
+  };
   expect(roomLayout.controlsBottom).toBeLessThanOrEqual(roomLayout.scheduleTop);
   expect(roomLayout.footerBottom).toBeLessThanOrEqual(roomLayout.height);
   expect(roomLayout.scrollHeight).toBeLessThanOrEqual(roomLayout.height + 1);
@@ -173,20 +201,27 @@ test('simulation controls fit above the schedule on portrait and landscape displ
 
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto('/common?simulate=2026-10-19T10%3A15%3A00');
-  await expect(page.getByRole('region', { name: 'Simulation controls' })).toBeVisible();
-  const commonLayout = await page.evaluate(() => {
-    const main = document.querySelector('.common-display')!;
-    const controls = main.querySelector('.simulation-controls')!;
-    const scheduleArea = main.querySelector('.common-content')!;
-    const footer = main.querySelector('.common-footer')!;
-    return {
-      controlsBottom: controls.getBoundingClientRect().bottom,
-      scheduleTop: scheduleArea.getBoundingClientRect().top,
-      footerBottom: footer.getBoundingClientRect().bottom,
-      height: main.clientHeight,
-      scrollHeight: main.scrollHeight,
-    };
-  });
+  const commonMain = page.getByRole('main', { name: 'Common-area conference overview' });
+  const commonControls = commonMain.getByRole('region', { name: 'Simulation controls' });
+  const commonSchedule = commonMain.getByRole('region', { name: 'Talk rooms' });
+  const commonFooter = commonMain.getByText('Europe/Oslo', { exact: true });
+  await expect(commonControls).toBeVisible();
+  const [commonDimensions, commonControlsBox, commonScheduleBox, commonFooterBox] = await Promise.all([
+    commonMain.evaluate((element) => ({ height: element.clientHeight, scrollHeight: element.scrollHeight })),
+    commonControls.boundingBox(),
+    commonSchedule.boundingBox(),
+    commonFooter.boundingBox(),
+  ]);
+  expect(commonControlsBox).not.toBeNull();
+  expect(commonScheduleBox).not.toBeNull();
+  expect(commonFooterBox).not.toBeNull();
+  const commonLayout = {
+    controlsBottom: commonControlsBox!.y + commonControlsBox!.height,
+    scheduleTop: commonScheduleBox!.y,
+    footerBottom: commonFooterBox!.y + commonFooterBox!.height,
+    height: commonDimensions.height,
+    scrollHeight: commonDimensions.scrollHeight,
+  };
   expect(commonLayout.controlsBottom).toBeLessThanOrEqual(commonLayout.scheduleTop);
   expect(commonLayout.footerBottom).toBeLessThanOrEqual(commonLayout.height);
   expect(commonLayout.scrollHeight).toBeLessThanOrEqual(commonLayout.height + 1);
