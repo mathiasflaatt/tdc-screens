@@ -105,6 +105,14 @@ test('shows the featured talk, speaker portrait and nearest room agenda on a 108
   expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.height + 1);
 });
 
+test('shows the current session at its exact start boundary', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-19T08:00:00.000Z'));
+  await page.goto('/room/42');
+
+  await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toBeVisible();
+  await expect(page.getByLabel('Oslo local time')).toHaveText('10:00');
+});
+
 test('selects the next talk at the exact end of a session', async ({ page }) => {
   await page.goto('/room/42');
   await page.clock.fastForward(5 * 60 * 1000);
