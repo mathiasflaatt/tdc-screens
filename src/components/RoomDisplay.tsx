@@ -121,7 +121,8 @@ export function RoomDisplay({ snapshot, room, stale, simulation }: RoomDisplayPr
   const sessionPhase = display.phase === 'empty' || display.phase === 'ended' || display.phase === 'complete'
     ? null
     : display.phase;
-  const agenda = getRoomAgenda(snapshot, room.id, now, display.session);
+  // With no featured session the room is finished or empty; a trailing agenda would contradict that.
+  const agenda = sessionPhase ? getRoomAgenda(snapshot, room.id, now, display.session) : [];
   const elsewhere = getCommonDisplayState(snapshot, now).rooms.filter((other) => other.room.id !== room.id);
   const breakContext = display.context?.type === 'break' || display.context?.type === 'lunch';
 
