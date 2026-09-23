@@ -167,3 +167,43 @@ test('offers a common-area link from the screen selector', async ({ page }) => {
   await expect(page).toHaveURL(/\/common$/);
   await expect(page.getByRole('heading', { name: /common areas/i })).toBeVisible();
 });
+
+test('moves updated talks to their new room and removes cancelled talks on refresh', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-19T08:15:00.000Z'));
+  let refreshedSchedule = schedule;
+  let requests = 0;
+
+  await page.unroute('**/api/schedule*');
+  await page.route('**/api/schedule*', async (route) => {
+    requests += 1;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(refreshedSchedule) });
+  });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.goto('/common');
+
+  await expect(page.getByRole('article', { name: 'Room A' }).getByRole('heading', { name: longTitle })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Room B' }).getByRole('heading', { name: 'Room B current talk' })).toBeVisible();
+  const movedTalk = {
+    ...schedule.sessions.find((candidate) => candidate.id === 'a-now')!,
+    roomId: 'room-b',
+    room: 'Room B',
+    title: 'Talk moved into Room B',
+    startsAt: '2026-10-19T10:05:00',
+    endsAt: '2026-10-19T10:55:00',
+  };
+  refreshedSchedule = {
+    ...schedule,
+    sessions: [
+      ...schedule.sessions.filter((candidate) => candidate.id !== 'a-now' && candidate.id !== 'b-now'),
+      movedTalk,
+    ],
+  };
+
+  await page.clock.fastForward(5 * 60 * 1000);
+
+  await expect(page.getByRole('article', { name: 'Room B' }).getByRole('heading', { name: 'Talk moved into Room B' })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Room B' }).getByText('10:05–10:55')).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Room A' }).getByRole('heading', { name: longTitle })).toHaveCount(0);
+  await expect(page.getByRole('article', { name: 'Room B' }).getByRole('heading', { name: 'Room B current talk' })).toHaveCount(0);
+  await expect.poll(() => requests).toBe(2);
+});

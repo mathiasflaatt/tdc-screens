@@ -25,7 +25,7 @@ npm test
 npm run test:api
 ```
 
-The browser tests use controlled schedule responses and a frozen clock in an `America/Los_Angeles` browser context. They cover room selection and direct links, Oslo time, session changes, common-area room selection and layout, breaks and lunch, plenaries, unequal room start times, unknown rooms, and schedule-loading failures. Install Playwright's Chromium with `npx playwright install chromium`. To use an existing Chrome or Chromium installation, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its executable path before running `npm test`.
+The browser tests use controlled schedule responses and a frozen clock in an `America/Los_Angeles` browser context. They cover room selection and direct links, Oslo time, session changes, common-area room selection and layout, breaks and lunch, plenaries, unequal room start times, unknown rooms, five-minute refreshes, outage recovery, and unavailable local storage. The simulation-mode polling check depends on issue #6, which adds the simulated clock; this suite verifies refresh cadence and live schedule transitions independently. Install Playwright's Chromium with `npx playwright install chromium`. To use an existing Chrome or Chromium installation, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its executable path before running `npm test`.
 
 ## Deploy to Vercel
 

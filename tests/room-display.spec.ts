@@ -261,3 +261,141 @@ test('keeps the cached schedule when a refresh contains invalid timestamps', asy
   await expect(page.getByText('Happening now')).toBeVisible();
   expect(await page.evaluate((key) => window.localStorage.getItem(key), scheduleCacheKey)).toBe(JSON.stringify(schedule));
 });
+
+test('updates room status on the one-second display tick and polls at five minutes', async ({ page }) => {
+  const secondBoundarySchedule = {
+    ...schedule,
+    sessions: schedule.sessions.map((session, index) => index === 0 ? ({
+      ...session,
+      startsAt: '2026-10-19T10:15:01',
+      endsAt: '2026-10-19T10:40:00',
+    }) : session),
+  };
+  let requests = 0;
+
+  await page.unroute('**/api/schedule*');
+  await page.route('**/api/schedule*', async (route) => {
+    requests += 1;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(secondBoundarySchedule) });
+  });
+  await page.goto('/room/42');
+
+  await expect(page.getByText('Starts later')).toBeVisible();
+  await expect.poll(() => requests).toBe(1);
+  await page.clock.fastForward(1_000);
+  await expect(page.getByText('Happening now')).toBeVisible();
+  expect(requests).toBe(1);
+
+  await page.clock.fastForward(299_999);
+  expect(requests).toBe(1);
+  await page.clock.fastForward(1);
+  await expect.poll(() => requests).toBe(2);
+});
+
+test('applies refreshed title, speaker, and scheduled time without reloading', async ({ page }) => {
+  let refreshedSchedule = schedule;
+  let requests = 0;
+
+  await page.unroute('**/api/schedule*');
+  await page.route('**/api/schedule*', async (route) => {
+    requests += 1;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(refreshedSchedule) });
+  });
+  await page.goto('/room/42');
+
+  await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toBeVisible();
+  refreshedSchedule = {
+    ...schedule,
+    sessions: schedule.sessions.map((session, index) => index === 0 ? ({
+      ...session,
+      title: 'A refreshed room talk',
+      startsAt: '2026-10-19T10:05:00',
+      endsAt: '2026-10-19T10:50:00',
+      speakers: [{ id: 'speaker-refreshed', name: 'Updated Speaker' }],
+    }) : session),
+  };
+
+  await page.clock.fastForward(5 * 60 * 1000);
+
+  await expect(page.getByRole('heading', { name: 'A refreshed room talk' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toHaveCount(0);
+  await expect(page.getByText('Updated Speaker')).toBeVisible();
+  await expect(page.getByText('10:05–10:50')).toBeVisible();
+  expect(page.url()).toMatch(/\/room\/42$/);
+  await expect.poll(() => requests).toBe(2);
+});
+
+test('shows the latest cached schedule through an outage and reload, then clears stale status on recovery', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-19T08:15:00.000Z'));
+  let refreshedSchedule = schedule;
+  let requests = 0;
+
+  await page.unroute('**/api/schedule*');
+  await page.route('**/api/schedule*', async (route) => {
+    requests += 1;
+    if (requests === 2 || requests === 3) {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'offline' }) });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(refreshedSchedule) });
+  });
+  await page.goto('/room/42');
+
+  await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toBeVisible();
+  await page.clock.fastForward(5 * 60 * 1000);
+  await expect(page.getByText('Schedule may be out of date')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toBeVisible();
+  await expect(page.getByText('Schedule may be out of date')).toBeVisible();
+
+  refreshedSchedule = {
+    ...schedule,
+    sessions: schedule.sessions.map((session, index) => index === 0 ? ({ ...session, title: 'Recovered room talk' }) : session),
+  };
+  await page.clock.fastForward(5 * 60 * 1000);
+
+  await expect(page.getByRole('heading', { name: 'Recovered room talk' })).toBeVisible();
+  await expect(page.getByText('Schedule may be out of date')).toHaveCount(0);
+  await expect.poll(() => requests).toBe(4);
+});
+
+test('recovers from an initial schedule failure on the next refresh', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-19T08:15:00.000Z'));
+  let requests = 0;
+
+  await page.unroute('**/api/schedule*');
+  await page.route('**/api/schedule*', async (route) => {
+    requests += 1;
+    if (requests === 1) {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'offline' }) });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(schedule) });
+  });
+  await page.goto('/room/42');
+
+  await expect(page.getByRole('heading', { name: /schedule unavailable/i })).toBeVisible();
+  await expect(page.getByText(/trying again automatically/i)).toBeVisible();
+  await page.clock.fastForward(5 * 60 * 1000);
+
+  await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toBeVisible();
+  await expect(page.getByText('Schedule unavailable')).toHaveCount(0);
+  await expect.poll(() => requests).toBe(2);
+});
+
+test('renders the fetched schedule when local storage is unavailable', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('Storage is disabled');
+      },
+    });
+  });
+  await page.goto('/room/42');
+
+  await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toBeVisible();
+  await expect(page.getByText('Schedule may be out of date')).toHaveCount(0);
+});

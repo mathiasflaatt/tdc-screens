@@ -69,7 +69,8 @@ test('builds the same-origin schedule from the fixed Sessionize feeds and ignore
   expect(requestedUrls.sort()).toEqual([...responses.keys()].sort());
   expect(response.statusCode).toBe(200);
   expect(response.headers['Cache-Control']).toBe('no-store');
-  const snapshot = response.body as { rooms: unknown[]; sessions: unknown[] };
+  const snapshot = response.body as { rooms: unknown[]; sessions: unknown[]; fetchedAt: string };
+  expect(snapshot.fetchedAt).toBe('2026-10-19T08:00:00.000Z');
   expect(snapshot.rooms).toEqual([{ id: '42', name: 'Andromeda' }]);
   expect(snapshot.sessions).toEqual([
     {
@@ -110,4 +111,39 @@ test('builds the same-origin schedule from the fixed Sessionize feeds and ignore
 
   expect(response.statusCode).toBe(502);
   expect(response.body).toEqual({ error: 'Schedule unavailable' });
+});
+
+test('does not return a fresh timestamp when the required Sessionize feed is unavailable', async () => {
+  const { createScheduleHandler } = await import('../api/schedule.js');
+  const handler = createScheduleHandler({
+    fetchImpl: async () => { throw new Error('Sessionize is unavailable'); },
+    now: () => new Date('2026-10-19T08:00:00.000Z'),
+  });
+  const response: {
+    headers: Record<string, string>;
+    statusCode?: number;
+    body?: unknown;
+    setHeader(name: string, value: string): void;
+    status(code: number): typeof response;
+    json(body: unknown): typeof response;
+  } = {
+    headers: {},
+    setHeader(name, value) {
+      this.headers[name] = value;
+    },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
+  };
+
+  await handler({ method: 'GET', url: '/api/schedule' }, response);
+
+  expect(response.statusCode).toBe(502);
+  expect(response.body).toEqual({ error: 'Schedule unavailable' });
+  expect(response.body).not.toHaveProperty('fetchedAt');
 });
