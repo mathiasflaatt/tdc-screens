@@ -241,7 +241,9 @@ export function getCommonDisplayState(snapshot: ScheduleSnapshot, now: number): 
     if (current) return { room, phase: 'live', session: current.session };
 
     const todayTalks = roomTalks.filter(({ start }) => osloDateKey(start) === today);
-    const next = todayTalks.find(({ start }) => start > now);
+    const next = beforeEvent
+      ? roomTalks.find(({ start }) => start > now)
+      : todayTalks.find(({ start }) => start > now);
     if (next) {
       const phase = beforeEvent
         ? 'before'

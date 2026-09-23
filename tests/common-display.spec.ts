@@ -77,7 +77,7 @@ test('opens the permanent common-area URL after a reload with six feed-derived t
   await expect(page.getByRole('heading', { name: /common areas/i })).toBeVisible();
   await expect(page.getByRole('article')).toHaveCount(6);
 
-  const dimensions = await page.locator('.common-display').evaluate((element) => ({
+  const dimensions = await page.getByRole('main', { name: 'Common-area conference overview' }).evaluate((element) => ({
     width: element.clientWidth,
     height: element.clientHeight,
     scrollHeight: element.scrollHeight,
@@ -143,7 +143,7 @@ test('shows a shared plenary once with its actual venue without treating it as a
 
 test('shows before-event, finished-room, and complete-program states', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
-  await page.clock.setFixedTime(new Date('2026-10-19T06:00:00.000Z'));
+  await page.clock.setFixedTime(new Date('2026-10-18T06:00:00.000Z'));
   await page.goto('/common');
   await expect(page.getByText('Starts later')).toHaveCount(6);
   await expect(page.getByRole('article', { name: 'Room A' }).getByText('10:00', { exact: true })).toBeVisible();
