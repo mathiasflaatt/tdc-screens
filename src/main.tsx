@@ -21,7 +21,9 @@ import './styles.css';
 const SCHEDULE_URL = '/api/schedule';
 const CACHE_KEY = 'tdc-2026-schedule-v1';
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-const SIMULATION_PARAMETER = 'simulate';
+const SIMULATION_MODE_PARAMETER = 'test';
+const SIMULATION_TIME_PARAMETER = 'at';
+const SIMULATION_SPEED_PARAMETER = 'speed';
 const PLAYBACK_SPEEDS = [1, 10, 60] as const;
 
 type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number];
@@ -101,7 +103,7 @@ function useSchedule(): ScheduleState {
   return state;
 }
 
-function formatOsloDateTimeInput(instant: number, includeSeconds = false): string {
+function formatOsloDateTimeInput(instant: number): string {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Oslo',
     year: 'numeric',
@@ -109,23 +111,51 @@ function formatOsloDateTimeInput(instant: number, includeSeconds = false): strin
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    ...(includeSeconds ? { second: '2-digit' } : {}),
     hourCycle: 'h23',
   }).formatToParts(instant).map((part) => [part.type, part.value]));
   const day = `${parts.year}-${parts.month}-${parts.day}`;
   const time = `${parts.hour}:${parts.minute}`;
-  return includeSeconds ? `${day}T${time}:${parts.second}` : `${day}T${time}`;
+  return `${day}T${time}`;
 }
 
-function currentSimulationTimeFromUrl(): number | null {
-  const value = new URLSearchParams(window.location.search).get(SIMULATION_PARAMETER);
-  return value ? parseSessionInstant(value) : null;
+function conferenceDate(snapshot: ScheduleSnapshot | null): string {
+  const sessionStarts = snapshot?.sessions
+    .map((session) => parseSessionInstant(session.startsAt))
+    .filter((instant): instant is number => instant !== null) ?? [];
+  return sessionStarts.length > 0
+    ? formatOsloDateTimeInput(Math.min(...sessionStarts)).slice(0, 10)
+    : formatOsloDateTimeInput(Date.now()).slice(0, 10);
 }
 
-function writeSimulationUrl(instant: number | null): void {
+function simulationEnabledInUrl(): boolean {
+  return new URLSearchParams(window.location.search).get(SIMULATION_MODE_PARAMETER) === 'true';
+}
+
+function currentSimulationTimeFromUrl(day: string): number | null {
+  if (!simulationEnabledInUrl()) return null;
+  const value = new URLSearchParams(window.location.search).get(SIMULATION_TIME_PARAMETER);
+  if (!value || !/^\d{2}:\d{2}$/.test(value)) return Date.now();
+  return parseSessionInstant(`${day}T${value}:00`) ?? Date.now();
+}
+
+function currentSimulationSpeedFromUrl(): PlaybackSpeed {
+  if (!simulationEnabledInUrl()) return 1;
+  const value = Number(new URLSearchParams(window.location.search).get(SIMULATION_SPEED_PARAMETER));
+  return PLAYBACK_SPEEDS.find((playbackSpeed) => playbackSpeed === value) ?? 1;
+}
+
+function writeSimulationUrl(instant: number | null, speed: PlaybackSpeed): void {
   const url = new URL(window.location.href);
-  if (instant === null) url.searchParams.delete(SIMULATION_PARAMETER);
-  else url.searchParams.set(SIMULATION_PARAMETER, formatOsloDateTimeInput(instant, true));
+  if (instant === null) {
+    url.searchParams.delete(SIMULATION_MODE_PARAMETER);
+    url.searchParams.delete(SIMULATION_TIME_PARAMETER);
+    url.searchParams.delete(SIMULATION_SPEED_PARAMETER);
+  } else {
+    url.searchParams.set(SIMULATION_MODE_PARAMETER, 'true');
+    url.searchParams.set(SIMULATION_TIME_PARAMETER, formatOsloDateTimeInput(instant).slice(11, 16));
+    if (speed === 1) url.searchParams.delete(SIMULATION_SPEED_PARAMETER);
+    else url.searchParams.set(SIMULATION_SPEED_PARAMETER, String(speed));
+  }
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -140,14 +170,24 @@ type SimulationClock = {
   returnToLive: () => void;
 };
 
-function useSimulationClock(): SimulationClock {
-  const [initialSimulationTime] = useState(currentSimulationTimeFromUrl);
+function useSimulationClock(snapshot: ScheduleSnapshot | null): SimulationClock {
+  const day = conferenceDate(snapshot);
+  const [initialSimulationTime] = useState(() => currentSimulationTimeFromUrl(day));
   const [simulationTime, setSimulationTime] = useState(initialSimulationTime ?? Date.now());
   const [liveTime, setLiveTime] = useState(() => Date.now());
-  const [active, setActive] = useState(initialSimulationTime !== null);
+  const [active, setActive] = useState(simulationEnabledInUrl);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState<PlaybackSpeed>(1);
+  const [speed, setSpeedState] = useState(currentSimulationSpeedFromUrl);
   const simulationTimeRef = useRef(simulationTime);
+
+  useEffect(() => {
+    if (!active) return;
+    const fromUrl = currentSimulationTimeFromUrl(day);
+    if (fromUrl === null) return;
+    simulationTimeRef.current = fromUrl;
+    setSimulationTime(fromUrl);
+    writeSimulationUrl(fromUrl, speed);
+  }, [active, day]);
 
   useEffect(() => {
     let previousRealTime = Date.now();
@@ -160,7 +200,7 @@ function useSimulationClock(): SimulationClock {
         const next = simulationTimeRef.current + elapsed * speed;
         simulationTimeRef.current = next;
         setSimulationTime(next);
-        writeSimulationUrl(next);
+        writeSimulationUrl(next, speed);
       }
     }, 1000);
     return () => window.clearInterval(timer);
@@ -175,15 +215,18 @@ function useSimulationClock(): SimulationClock {
       simulationTimeRef.current = instant;
       setActive(true);
       setSimulationTime(instant);
-      writeSimulationUrl(instant);
+      writeSimulationUrl(instant, speed);
     },
     togglePlaying: () => setPlaying((value) => !value),
-    setSpeed,
+    setSpeed: (nextSpeed) => {
+      setSpeedState(nextSpeed);
+      if (active) writeSimulationUrl(simulationTimeRef.current, nextSpeed);
+    },
     returnToLive: () => {
       setPlaying(false);
       setActive(false);
       setLiveTime(Date.now());
-      writeSimulationUrl(null);
+      writeSimulationUrl(null, speed);
     },
   };
 }
@@ -234,9 +277,14 @@ function screenHref(path: string, simulation: SimulationClock): string {
   const url = new URL(window.location.href);
   url.pathname = path;
   if (simulation.active) {
-    url.searchParams.set(SIMULATION_PARAMETER, formatOsloDateTimeInput(simulation.now, true));
+    url.searchParams.set(SIMULATION_MODE_PARAMETER, 'true');
+    url.searchParams.set(SIMULATION_TIME_PARAMETER, formatOsloDateTimeInput(simulation.now).slice(11, 16));
+    if (simulation.speed === 1) url.searchParams.delete(SIMULATION_SPEED_PARAMETER);
+    else url.searchParams.set(SIMULATION_SPEED_PARAMETER, String(simulation.speed));
   } else {
-    url.searchParams.delete(SIMULATION_PARAMETER);
+    url.searchParams.delete(SIMULATION_MODE_PARAMETER);
+    url.searchParams.delete(SIMULATION_TIME_PARAMETER);
+    url.searchParams.delete(SIMULATION_SPEED_PARAMETER);
   }
   return `${url.pathname}${url.search}${url.hash}`;
 }
@@ -261,40 +309,31 @@ function SimulationControls({
   const scheduleBoundaries = [...new Set(sessionInstants)].sort((left, right) => left - right);
   const previousBoundary = scheduleBoundaries.filter((instant) => instant < simulation.now).at(-1);
   const nextBoundary = scheduleBoundaries.find((instant) => instant > simulation.now);
-  const simulationDay = formatOsloDateTimeInput(simulation.now).slice(0, 10);
-  const firstDay = sessionInstants.length > 0
-    ? formatOsloDateTimeInput(Math.min(...sessionInstants)).slice(0, 10)
-    : simulationDay;
-  const lastDay = sessionInstants.length > 0
-    ? formatOsloDateTimeInput(Math.max(...sessionInstants)).slice(0, 10)
-    : simulationDay;
-  const nextDate = (date: string) => {
-    const day = new Date(`${date}T00:00:00Z`);
-    day.setUTCDate(day.getUTCDate() + 1);
-    return day.toISOString().slice(0, 10);
-  };
-  const minimum = parseSessionInstant(`${firstDay}T00:00:00`) ?? Math.min(...sessionInstants, simulation.now);
-  const maximum = (parseSessionInstant(`${nextDate(lastDay)}T00:00:00`) ?? minimum + 86_400_000) - 1000;
+  const day = conferenceDate(snapshot);
+  const nextDate = new Date(`${day}T00:00:00Z`);
+  nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+  const minimum = parseSessionInstant(`${day}T00:00:00`) ?? simulation.now;
+  const maximum = (parseSessionInstant(`${nextDate.toISOString().slice(0, 10)}T00:00:00`) ?? minimum + 86_400_000) - 60_000;
   const scrubberTime = Math.min(maximum, Math.max(minimum, simulation.now));
 
   return (
     <section className="simulation-controls" aria-label="Simulation controls">
       <div className="simulation-controls-heading">
-        <p className="simulation-mode-label" role="status">SIMULATION MODE · NOT LIVE</p>
+        <p className="simulation-mode-label" role="status">Simulated time</p>
         <div className="simulation-links">
           {switchHref && switchLabel && <a href={screenHref(switchHref, simulation)}>{switchLabel}</a>}
-          <button type="button" onClick={simulation.returnToLive}>Return to live</button>
+          <button type="button" onClick={simulation.returnToLive}>Back to live</button>
         </div>
       </div>
       <div className="simulation-controls-body">
         <label className="simulation-time-control">
-          <span>Simulation date and time</span>
+          <span>Simulation time</span>
           <input
-            type="datetime-local"
+            type="time"
             step="60"
-            value={formatOsloDateTimeInput(simulation.now)}
+            value={formatOsloDateTimeInput(simulation.now).slice(11, 16)}
             onChange={(event) => {
-              const instant = parseSessionInstant(event.currentTarget.value);
+              const instant = parseSessionInstant(`${day}T${event.currentTarget.value}:00`);
               if (instant !== null) simulation.seek(instant);
             }}
           />
@@ -304,20 +343,26 @@ function SimulationControls({
           <input
             aria-label="Day scrubber"
             type="range"
+            list="simulation-boundaries"
             min={minimum}
             max={maximum}
             step={60_000}
             value={scrubberTime}
             onChange={(event) => simulation.seek(Number(event.currentTarget.value))}
           />
+          <datalist id="simulation-boundaries">
+            {scheduleBoundaries.map((instant) => (
+              <option key={instant} value={instant} label={formatOsloDateTimeInput(instant).slice(11, 16)} />
+            ))}
+          </datalist>
         </label>
         <div className="simulation-transport">
           <button type="button" disabled={previousBoundary === undefined} onClick={() => previousBoundary !== undefined && simulation.seek(previousBoundary)}>
-            Previous transition
+            Previous boundary
           </button>
           <button type="button" onClick={simulation.togglePlaying}>{simulation.playing ? 'Pause' : 'Play'}</button>
           <button type="button" disabled={nextBoundary === undefined} onClick={() => nextBoundary !== undefined && simulation.seek(nextBoundary)}>
-            Next transition
+            Next boundary
           </button>
         </div>
         <fieldset className="simulation-speed-control">
@@ -518,12 +563,6 @@ function RoomDisplay({
           </time>
           <span className="clock-caption">{simulation.active ? 'SIMULATED TIME · TRONDHEIM' : 'LOCAL TIME · TRONDHEIM'}</span>
         </div>
-        <SimulationControls
-          snapshot={snapshot}
-          simulation={simulation}
-          switchHref="/common"
-          switchLabel="Common-area view"
-        />
         {stale && <StaleNotice />}
       </header>
 
@@ -539,6 +578,13 @@ function RoomDisplay({
         </div>
         <UpcomingAgenda sessions={upcoming} />
       </section>
+
+      <SimulationControls
+        snapshot={snapshot}
+        simulation={simulation}
+        switchHref="/common"
+        switchLabel="Common-area view"
+      />
 
       <footer className="display-footer">
         <a href={screenHref('/', simulation)}>All room screens</a>
@@ -652,7 +698,6 @@ function CommonDisplay({
           </time>
           <span className="clock-caption">{simulation.active ? 'SIMULATED TIME · TRONDHEIM' : 'LOCAL TIME · TRONDHEIM'}</span>
         </div>
-        <SimulationControls snapshot={snapshot} simulation={simulation} switchHref="/" switchLabel="Choose a room" />
         {stale && <StaleNotice />}
       </header>
 
@@ -670,6 +715,8 @@ function CommonDisplay({
           ))}
         </div>
       </section>
+
+      <SimulationControls snapshot={snapshot} simulation={simulation} switchHref="/" switchLabel="Choose a room" />
 
       <footer className="common-footer">
         <a href={screenHref('/', simulation)}>All room screens</a>
@@ -696,7 +743,7 @@ function UnknownRoom({ roomId, simulation }: { roomId: string; simulation: Simul
 
 function App() {
   const state = useSchedule();
-  const simulation = useSimulationClock();
+  const simulation = useSimulationClock(state.snapshot);
   const route = /^\/room\/([^/]+)\/?$/.exec(window.location.pathname);
   const commonRoute = /^\/common\/?$/.test(window.location.pathname);
 
