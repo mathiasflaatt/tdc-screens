@@ -47,6 +47,23 @@ test('the test URL restores a feed-date simulation position and playback speed',
   await expect(page.getByRole('button', { name: '10×' })).toHaveAttribute('aria-pressed', 'true');
 });
 
+test('a bare test URL starts at the current wall time on the feed conference date', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-09-23T08:15:00.000Z'));
+  await page.addInitScript((cachedSchedule) => {
+    window.localStorage.setItem('tdc-2026-schedule-v1', JSON.stringify(cachedSchedule));
+  }, schedule);
+  await page.goto('/common?test=true');
+
+  await expect(page.getByLabel('Oslo local time')).toHaveText('10:15');
+  await expect(page.getByRole('heading', { name: 'Common Areas' })).toBeVisible();
+  await expect(page.getByText('Monday, 19 October 2026', { exact: true })).toHaveCount(1);
+  await expect(page).toHaveURL(/\/common\?test=true&at=10%3A15/);
+
+  await page.reload();
+  await expect(page.getByLabel('Oslo local time')).toHaveText('10:15');
+  await expect(page.getByText('Monday, 19 October 2026', { exact: true })).toHaveCount(1);
+});
+
 test('test mode selects Oslo time and labels the display while URLs without test mode stay live', async ({ page }) => {
   await page.goto('/room/42?test=true&at=10%3A15');
 
@@ -187,6 +204,18 @@ test('playback advances at one, ten, and sixty times the real elapsed time', asy
   await page.clock.fastForward(1_000);
   await expect(page).toHaveURL(/at=10%3A17/);
   await expect(page.getByLabel('Oslo local time')).toHaveText('10:17');
+});
+
+test('playback pauses at the final minute so its URL remains within the feed conference day', async ({ page }) => {
+  await page.goto('/room/42?test=true&at=23%3A58');
+  await page.getByRole('button', { name: '60×' }).click();
+  await page.getByRole('button', { name: 'Play' }).click();
+
+  await page.clock.fastForward(5_000);
+
+  await expect(page.getByLabel('Oslo local time')).toHaveText('23:59');
+  await expect(page).toHaveURL(/test=true&at=23%3A59&speed=60/);
+  await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
 });
 
 test('simulation controls sit below the schedule without obscuring room or common displays', async ({ page }) => {

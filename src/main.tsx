@@ -127,6 +127,14 @@ function conferenceDate(snapshot: ScheduleSnapshot | null): string {
     : formatOsloDateTimeInput(Date.now()).slice(0, 10);
 }
 
+function conferenceDayEnd(day: string): number {
+  const nextDate = new Date(`${day}T00:00:00Z`);
+  nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+  const nextMidnight = parseSessionInstant(`${nextDate.toISOString().slice(0, 10)}T00:00:00`);
+  const startOfDay = parseSessionInstant(`${day}T00:00:00`);
+  return (nextMidnight ?? (startOfDay ?? Date.now()) + 86_400_000) - 60_000;
+}
+
 function simulationEnabledInUrl(): boolean {
   return new URLSearchParams(window.location.search).get(SIMULATION_MODE_PARAMETER) === 'true';
 }
@@ -134,8 +142,9 @@ function simulationEnabledInUrl(): boolean {
 function currentSimulationTimeFromUrl(day: string): number | null {
   if (!simulationEnabledInUrl()) return null;
   const value = new URLSearchParams(window.location.search).get(SIMULATION_TIME_PARAMETER);
-  if (!value || !/^\d{2}:\d{2}$/.test(value)) return Date.now();
-  return parseSessionInstant(`${day}T${value}:00`) ?? Date.now();
+  const currentOsloTime = formatOsloDateTimeInput(Date.now()).slice(11, 16);
+  const time = value && /^\d{2}:\d{2}$/.test(value) ? value : currentOsloTime;
+  return parseSessionInstant(`${day}T${time}:00`);
 }
 
 function currentSimulationSpeedFromUrl(): PlaybackSpeed {
@@ -144,8 +153,7 @@ function currentSimulationSpeedFromUrl(): PlaybackSpeed {
   return PLAYBACK_SPEEDS.find((playbackSpeed) => playbackSpeed === value) ?? 1;
 }
 
-function writeSimulationUrl(instant: number | null, speed: PlaybackSpeed): void {
-  const url = new URL(window.location.href);
+function setSimulationUrlParameters(url: URL, instant: number | null, speed: PlaybackSpeed): void {
   if (instant === null) {
     url.searchParams.delete(SIMULATION_MODE_PARAMETER);
     url.searchParams.delete(SIMULATION_TIME_PARAMETER);
@@ -156,6 +164,11 @@ function writeSimulationUrl(instant: number | null, speed: PlaybackSpeed): void 
     if (speed === 1) url.searchParams.delete(SIMULATION_SPEED_PARAMETER);
     else url.searchParams.set(SIMULATION_SPEED_PARAMETER, String(speed));
   }
+}
+
+function writeSimulationUrl(instant: number | null, speed: PlaybackSpeed): void {
+  const url = new URL(window.location.href);
+  setSimulationUrlParameters(url, instant, speed);
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -197,14 +210,16 @@ function useSimulationClock(snapshot: ScheduleSnapshot | null): SimulationClock 
       previousRealTime = realTime;
       setLiveTime(realTime);
       if (active && playing) {
-        const next = simulationTimeRef.current + elapsed * speed;
+        const endOfDay = conferenceDayEnd(day);
+        const next = Math.min(simulationTimeRef.current + elapsed * speed, endOfDay);
         simulationTimeRef.current = next;
         setSimulationTime(next);
         writeSimulationUrl(next, speed);
+        if (next >= endOfDay) setPlaying(false);
       }
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [active, playing, speed]);
+  }, [active, day, playing, speed]);
 
   return {
     active,
@@ -276,16 +291,7 @@ function StaleNotice() {
 function screenHref(path: string, simulation: SimulationClock): string {
   const url = new URL(window.location.href);
   url.pathname = path;
-  if (simulation.active) {
-    url.searchParams.set(SIMULATION_MODE_PARAMETER, 'true');
-    url.searchParams.set(SIMULATION_TIME_PARAMETER, formatOsloDateTimeInput(simulation.now).slice(11, 16));
-    if (simulation.speed === 1) url.searchParams.delete(SIMULATION_SPEED_PARAMETER);
-    else url.searchParams.set(SIMULATION_SPEED_PARAMETER, String(simulation.speed));
-  } else {
-    url.searchParams.delete(SIMULATION_MODE_PARAMETER);
-    url.searchParams.delete(SIMULATION_TIME_PARAMETER);
-    url.searchParams.delete(SIMULATION_SPEED_PARAMETER);
-  }
+  setSimulationUrlParameters(url, simulation.active ? simulation.now : null, simulation.speed);
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
@@ -310,10 +316,8 @@ function SimulationControls({
   const previousBoundary = scheduleBoundaries.filter((instant) => instant < simulation.now).at(-1);
   const nextBoundary = scheduleBoundaries.find((instant) => instant > simulation.now);
   const day = conferenceDate(snapshot);
-  const nextDate = new Date(`${day}T00:00:00Z`);
-  nextDate.setUTCDate(nextDate.getUTCDate() + 1);
   const minimum = parseSessionInstant(`${day}T00:00:00`) ?? simulation.now;
-  const maximum = (parseSessionInstant(`${nextDate.toISOString().slice(0, 10)}T00:00:00`) ?? minimum + 86_400_000) - 60_000;
+  const maximum = conferenceDayEnd(day);
   const scrubberTime = Math.min(maximum, Math.max(minimum, simulation.now));
 
   return (
