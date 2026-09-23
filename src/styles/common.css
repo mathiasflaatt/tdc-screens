@@ -1,0 +1,128 @@
+/* Landscape common-area display — 1920×1080 canvas. */
+.common-canvas { --kiosk-gutter: var(--spacing-10); gap: var(--spacing-6); }
+.common-canvas .kiosk-header { padding-bottom: var(--spacing-6); }
+.common-canvas .kiosk-header .tdc-wordmark { --wordmark-size: 4rem; }
+.common-canvas .kiosk-title { font-size: var(--kiosk-text-lg); }
+.common-canvas .kiosk-clock { font-size: var(--kiosk-text-xl); }
+
+.common-banner { display: flex; flex: 0 0 auto; flex-direction: column; gap: var(--spacing-2); }
+.common-banner-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-6);
+  margin: 0;
+  padding: var(--spacing-4) var(--spacing-8);
+  border: 1px solid var(--color-border-brand);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-brand-tint);
+  font-size: var(--kiosk-text-sm);
+}
+.common-banner-item--plenary { border-color: var(--color-fg-accent); background: var(--color-bg-accent-tint); }
+.common-banner-label {
+  color: var(--color-fg-brand);
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.common-banner-item--plenary .common-banner-label { color: var(--color-fg-accent); }
+.common-banner-title { min-width: 0; overflow: hidden; font-family: var(--font-family-display); font-size: var(--kiosk-text-md); text-overflow: ellipsis; white-space: nowrap; }
+.common-banner-where { margin-left: auto; color: var(--color-fg-muted); font-family: var(--font-family-mono); white-space: nowrap; }
+.common-banner-where b { color: var(--color-fg-accent); font-weight: var(--font-weight-bold); }
+
+.room-columns { display: grid; flex: 1 1 auto; gap: var(--spacing-4); min-height: 0; }
+
+.room-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.room-column-name {
+  margin: 0;
+  padding-bottom: var(--spacing-2);
+  border-bottom: 2px solid var(--color-fg-brand);
+  color: var(--color-fg-brand);
+  font-size: var(--font-size-70);
+  line-height: var(--line-height-tight);
+  overflow-wrap: anywhere;
+}
+
+.column-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
+}
+.column-card--now { border-color: var(--color-fg-accent); background: var(--color-bg-accent-tint); }
+.column-card--featured { border-color: var(--color-border-brand); background: var(--color-bg-brand-tint); }
+.column-card-meta { display: flex; align-items: baseline; justify-content: space-between; gap: var(--spacing-2); margin: 0; }
+.column-card-label {
+  color: var(--color-fg-brand);
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-40);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+.column-card--now .column-card-label { color: var(--color-fg-accent); }
+.column-card-meta time {
+  color: var(--color-fg-accent);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-50);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.column-card-title {
+  margin: 0;
+  font-size: var(--font-size-60);
+  letter-spacing: -0.02em;
+  line-height: var(--line-height-tight);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.column-card--now .column-card-title, .column-card--featured .column-card-title { font-size: var(--font-size-70); }
+.column-card-date { margin: 0; color: var(--color-fg-accent); font-family: var(--font-family-mono); font-size: var(--font-size-30); }
+.column-card .speaker-list { --speaker-size: 3.25rem; --speaker-text: var(--font-size-40); flex-direction: column; gap: var(--spacing-2); }
+
+.room-column-empty { margin: var(--spacing-4) 0 0; color: var(--color-fg-muted); font-size: var(--font-size-50); }
+
+/* Rows that do not fit wrap into a hidden second column, so the list never
+   shows a half-cut row: it simply lists as many remaining talks as fit. */
+.room-column-later {
+  display: flex;
+  flex: 1 1 0;
+  flex-flow: column wrap;
+  align-content: flex-start;
+  column-gap: var(--spacing-8);
+  row-gap: var(--spacing-2);
+  min-height: 0;
+  margin: var(--spacing-1) 0 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+}
+.room-column-later li {
+  display: grid;
+  flex: 0 0 auto;
+  width: 100%;
+  grid-template-columns: 4.25rem minmax(0, 1fr);
+  gap: var(--spacing-2);
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--font-size-40);
+  line-height: var(--line-height-tight);
+}
+.room-column-later time { color: var(--color-fg-accent); font-family: var(--font-family-mono); font-size: var(--font-size-30); font-variant-numeric: tabular-nums; }
+.room-column-later span { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--color-fg-muted); }
+
+.common-message { margin: auto 0; }
+.common-message h2 { margin: 0; font-size: calc(var(--font-size-100) * 1.5); line-height: var(--line-height-none); }
+.common-message p { margin: var(--spacing-6) 0 0; color: var(--color-fg-muted); font-size: var(--kiosk-text-md); }

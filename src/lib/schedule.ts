@@ -40,13 +40,24 @@ export type CommonRoomPhase = 'live' | 'before' | 'break' | 'lunch' | 'next' | '
 export type CommonRoomDisplay = {
   room: DisplayRoom;
   phase: CommonRoomPhase;
-  session?: DisplaySession;
+  /** The talk running now in this room, if any. */
+  current?: DisplaySession;
+  /** The next talk in this room after the current one (or after now). */
+  next?: DisplaySession;
+  /** Remaining talks the same day after `next`. */
+  later: DisplaySession[];
+};
+
+export type CommonNotice = {
+  type: 'break' | 'lunch' | 'plenary' | 'service';
+  session: DisplaySession;
 };
 
 export type CommonDisplayState = {
   phase: 'scheduled' | 'complete' | 'empty';
   rooms: CommonRoomDisplay[];
-  plenary?: DisplaySession;
+  /** Shared break/lunch and plenary notices, shown once above the room columns. */
+  notices: CommonNotice[];
 };
 
 type TimedSession = { session: DisplaySession; start: number; end: number };
@@ -184,85 +195,91 @@ export function getRoomDisplayState(
   return { phase, session: nextTalk.session, context };
 }
 
-export function getUpcomingRoomSessions(
+/** All remaining sessions in a room on the featured session's day, excluding the featured one. */
+export function getRoomAgenda(
   snapshot: ScheduleSnapshot,
   roomId: string,
   now: number,
   featuredSession?: DisplaySession,
 ): DisplaySession[] {
-  const dateKey = featuredSession
-    ? osloDateKey(parseSessionInstant(featuredSession.startsAt) ?? now)
-    : osloDateKey(now);
+  const featuredStart = featuredSession ? parseSessionInstant(featuredSession.startsAt) ?? now : now;
+  const dateKey = osloDateKey(featuredStart);
+  // Only list what comes after the featured session, never earlier entries such as registration.
+  const after = Math.max(now, featuredStart);
   return timedSessions(snapshot)
     .filter(({ session, start }) =>
       session.roomId === roomId &&
-      !session.isServiceSession &&
-      start > now &&
+      start > after &&
       osloDateKey(start) === dateKey &&
       session.id !== featuredSession?.id,
     )
-    .slice(0, 2)
     .map(({ session }) => session);
+}
+
+function activeCommonNotices(allSessions: TimedSession[], now: number): CommonNotice[] {
+  const active = allSessions.filter(({ start, end }) => start <= now && now < end);
+  const byType = (type: 'break' | 'lunch') =>
+    active.find(({ session }) => contextForService(session)?.type === type)?.session;
+  const lunch = byType('lunch');
+  const coffee = byType('break');
+  const pause: CommonNotice | undefined = lunch
+    ? { type: 'lunch', session: lunch }
+    : coffee ? { type: 'break', session: coffee } : undefined;
+  const plenary = active.find(({ session }) => session.isPlenumSession && !session.isServiceSession)?.session;
+  const sharedService = pause || plenary
+    ? undefined
+    : active.find(({ session }) => session.isPlenumSession && session.isServiceSession)?.session;
+
+  return [
+    pause,
+    plenary && { type: 'plenary' as const, session: plenary },
+    sharedService && { type: 'service' as const, session: sharedService },
+  ].filter((notice): notice is CommonNotice => Boolean(notice));
 }
 
 export function getCommonDisplayState(snapshot: ScheduleSnapshot, now: number): CommonDisplayState {
   const allSessions = timedSessions(snapshot);
-  if (allSessions.length === 0) return { phase: 'empty', rooms: [] };
+  if (allSessions.length === 0) return { phase: 'empty', rooms: [], notices: [] };
 
   const talks = allSessions.filter(({ session }) => !session.isServiceSession && !session.isPlenumSession);
-  if (talks.length === 0) return { phase: 'empty', rooms: [] };
+  if (talks.length === 0) return { phase: 'empty', rooms: [], notices: [] };
 
   const programEnd = Math.max(...allSessions.map(({ end }) => end));
-  if (now >= programEnd) return { phase: 'complete', rooms: [] };
+  if (now >= programEnd) return { phase: 'complete', rooms: [], notices: [] };
 
   const talkRoomIds = new Set(talks.map(({ session }) => session.roomId));
   const rooms = snapshot.rooms.filter((room) => talkRoomIds.has(room.id));
-  if (rooms.length === 0) return { phase: 'empty', rooms: [] };
+  if (rooms.length === 0) return { phase: 'empty', rooms: [], notices: [] };
 
   const programStart = Math.min(...talks.map(({ start }) => start));
   const beforeEvent = now < programStart;
   const today = osloDateKey(now);
-  const activeServiceContext = allSessions
-    .filter(({ session, start, end }) =>
-      session.isServiceSession && start <= now && now < end && contextForService(session) !== null,
-    )
-    .map(({ session }) => contextForService(session))
-    .find((context) => context?.type === 'lunch')
-    ?? allSessions
-      .filter(({ session, start, end }) =>
-        session.isServiceSession && start <= now && now < end && contextForService(session)?.type === 'break',
-      )
-      .map(({ session }) => contextForService(session))
-      .find((context) => context?.type === 'break');
+  const notices = activeCommonNotices(allSessions, now);
+  const pause = notices.find(({ type }) => type === 'break' || type === 'lunch');
 
   const roomStates = rooms.map((room): CommonRoomDisplay => {
     const roomTalks = talks.filter(({ session }) => session.roomId === room.id);
     const current = currentEntry(roomTalks, now);
-    if (current) return { room, phase: 'live', session: current.session };
-
-    const todayTalks = roomTalks.filter(({ start }) => osloDateKey(start) === today);
-    const next = beforeEvent
+    const upcomingDay = beforeEvent
       ? roomTalks.find(({ start }) => start > now)
-      : todayTalks.find(({ start }) => start > now);
+      : roomTalks.find(({ start }) => start > now && osloDateKey(start) === today);
+    const dayKey = upcomingDay ? osloDateKey(upcomingDay.start) : today;
+    const upcoming = roomTalks.filter(({ start }) => start > now && osloDateKey(start) === dayKey);
+    const [next, ...later] = upcoming.map(({ session }) => session);
+
+    if (current) return { room, phase: 'live', current: current.session, next, later };
     if (next) {
       const phase = beforeEvent
         ? 'before'
-        : activeServiceContext?.type === 'lunch'
-          ? 'lunch'
-          : activeServiceContext?.type === 'break'
-            ? 'break'
-            : 'next';
-      return { room, phase, session: next.session };
+        : pause?.type === 'lunch' || pause?.type === 'break'
+          ? pause.type
+          : 'next';
+      return { room, phase, next, later };
     }
-
-    return { room, phase: roomTalks.length === 0 ? 'empty' : 'ended' };
+    return { room, phase: roomTalks.length === 0 ? 'empty' : 'ended', later: [] };
   });
 
-  const plenary = allSessions.find(({ session, start, end }) =>
-    session.isPlenumSession && start <= now && now < end,
-  )?.session;
-
-  return { phase: 'scheduled', rooms: roomStates, plenary };
+  return { phase: 'scheduled', rooms: roomStates, notices };
 }
 
 export function isScheduleSnapshot(value: unknown): value is ScheduleSnapshot {

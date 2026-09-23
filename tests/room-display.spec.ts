@@ -133,11 +133,16 @@ test('features the next room talk during a shared coffee break and shows its act
   await expect(page.getByText('Sam Example')).toBeVisible();
   await expect(page.getByText('Toni Example')).toBeVisible();
   const layout = await page.evaluate(() => {
-    const footer = document.querySelector('main footer')!.getBoundingClientRect();
-    return { scrollHeight: document.documentElement.scrollHeight, viewportHeight: window.innerHeight, footerBottom: footer.bottom };
+    const canvas = document.querySelector('main')!;
+    return {
+      scrollHeight: document.documentElement.scrollHeight,
+      viewportHeight: window.innerHeight,
+      canvasScrollHeight: canvas.scrollHeight,
+      canvasHeight: canvas.clientHeight,
+    };
   });
   expect(layout.scrollHeight).toBeLessThanOrEqual(layout.viewportHeight);
-  expect(layout.footerBottom).toBeLessThanOrEqual(layout.viewportHeight);
+  expect(layout.canvasScrollHeight).toBeLessThanOrEqual(layout.canvasHeight);
   if (process.env.TDC_LONG_SCREENSHOT_PATH) {
     await page.screenshot({ path: process.env.TDC_LONG_SCREENSHOT_PATH, fullPage: true });
   }
@@ -398,4 +403,126 @@ test('renders the fetched schedule when local storage is unavailable', async ({ 
 
   await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toBeVisible();
   await expect(page.getByText('Schedule may be out of date')).toHaveCount(0);
+});
+
+test('shows kiosk header parts without selector chrome, footer, or date', async ({ page }) => {
+  await page.goto('/room/42');
+
+  const header = page.getByRole('main').locator('header');
+  await expect(header.getByRole('heading', { name: 'Andromeda', level: 1 })).toBeVisible();
+  await expect(header.getByRole('img', { name: 'TDC' })).toBeVisible();
+  await expect(header.getByLabel('Oslo local time')).toHaveText('10:15');
+  await expect(page.getByText('All room screens')).toHaveCount(0);
+  await expect(page.getByText(/Europe\/Oslo/)).toHaveCount(0);
+  await expect(page.getByText(/^room display$/i)).toHaveCount(0);
+  await expect(page.getByText(/Monday, 19 October 2026/i)).toHaveCount(0);
+  await expect(page.getByRole('contentinfo')).toHaveCount(0);
+  await expect(page.getByRole('link')).toHaveCount(0);
+
+  const [wordmark, title, clock] = await Promise.all([
+    header.getByRole('img', { name: 'TDC' }).boundingBox(),
+    header.getByRole('heading', { name: 'Andromeda' }).boundingBox(),
+    header.getByLabel('Oslo local time').boundingBox(),
+  ]);
+  expect(title!.x).toBeLessThan(wordmark!.x);
+  expect(clock!.x).toBeGreaterThan(wordmark!.x + wordmark!.width);
+  expect(Math.abs(wordmark!.x + wordmark!.width / 2 - 540)).toBeLessThan(2);
+});
+
+test('lists the full rest-of-day room agenda, including breaks', async ({ page }) => {
+  await page.goto('/room/42');
+
+  const agenda = page.getByRole('region', { name: /upcoming room agenda/i });
+  await expect(agenda.getByRole('listitem')).toHaveText([
+    /10:20–10:45\s*The next talk starts on the room clock/,
+    /10:45–11:00\s*Coffee break/,
+    new RegExp(`11:00–11:40\\s*${longTalkTitle}`),
+    /12:00–13:00\s*Lunch/,
+    /13:00–13:45\s*The afternoon session/,
+    /16:30–17:00\s*The last Andromeda talk/,
+  ]);
+});
+
+test('lists only sessions after the featured talk and hides the agenda once the room is finished', async ({ page }) => {
+  const withRoomServices = {
+    ...schedule,
+    sessions: [
+      ...schedule.sessions,
+      {
+        id: 'registration', roomId: '42', room: 'Andromeda', title: 'Registration',
+        startsAt: '2026-10-19T09:00:00', endsAt: '2026-10-19T09:45:00',
+        speakers: [], isServiceSession: true, isPlenumSession: false,
+      },
+      {
+        id: 'mingle', roomId: '42', room: 'Andromeda', title: 'Closing mingle',
+        startsAt: '2026-10-19T17:30:00', endsAt: '2026-10-19T18:00:00',
+        speakers: [], isServiceSession: true, isPlenumSession: false,
+      },
+    ],
+  };
+  await page.unroute('**/api/schedule*');
+  await page.route('**/api/schedule*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(withRoomServices) }),
+  );
+  await page.clock.setFixedTime(new Date('2026-10-19T06:30:00.000Z'));
+  await page.goto('/room/42');
+
+  await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toBeVisible();
+  const agenda = page.getByRole('region', { name: /upcoming room agenda/i });
+  await expect(agenda.getByRole('listitem').first()).toHaveText(/10:20–10:45\s*The next talk starts on the room clock/);
+  await expect(agenda.getByText('Registration')).toHaveCount(0);
+
+  await page.clock.setFixedTime(new Date('2026-10-19T15:10:00.000Z'));
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'No more sessions today' })).toBeVisible();
+  await expect(page.getByRole('region', { name: /upcoming room agenda/i })).toHaveCount(0);
+});
+
+test('shows what is on in every other talk room in the elsewhere strip', async ({ page }) => {
+  const withOtherRooms = {
+    ...schedule,
+    rooms: [...schedule.rooms, { id: '88', name: 'Cosmos 3AB' }, { id: '99', name: 'Living room' }],
+    sessions: [
+      ...schedule.sessions,
+      {
+        id: 'cosmos-now', roomId: '88', room: 'Cosmos 3AB', title: 'Tracing the client with OpenTelemetry',
+        startsAt: '2026-10-19T10:00:00', endsAt: '2026-10-19T10:40:00',
+        speakers: [], isServiceSession: false, isPlenumSession: false,
+      },
+      {
+        id: 'living-next', roomId: '99', room: 'Living room', title: 'Gammal font, nye kurver',
+        startsAt: '2026-10-19T11:00:00', endsAt: '2026-10-19T11:40:00',
+        speakers: [], isServiceSession: false, isPlenumSession: false,
+      },
+    ],
+  };
+  await page.unroute('**/api/schedule*');
+  await page.route('**/api/schedule*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(withOtherRooms) }),
+  );
+  await page.goto('/room/42');
+
+  const elsewhere = page.getByRole('region', { name: 'Elsewhere now' });
+  await expect(elsewhere.getByRole('listitem')).toHaveText([
+    /Cosmos 3AB\s*Now\s*Tracing the client with OpenTelemetry/,
+    /Living room\s*Next 11:00\s*Gammal font, nye kurver/,
+  ]);
+  await expect(elsewhere.getByText('Andromeda')).toHaveCount(0);
+});
+
+test('scales the fixed portrait canvas uniformly to fill a 4K portrait screen', async ({ page }) => {
+  await page.setViewportSize({ width: 2160, height: 3840 });
+  await page.goto('/room/42');
+
+  await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toBeVisible();
+  expect(await page.locator('.display-page').boundingBox()).toEqual({ x: 0, y: 0, width: 2160, height: 3840 });
+  const dimensions = await page.locator('.display-page').evaluate((element) => ({
+    width: element.clientWidth,
+    height: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    pageScroll: document.documentElement.scrollHeight,
+  }));
+  expect(dimensions).toMatchObject({ width: 1080, height: 1920 });
+  expect(dimensions.scrollHeight).toBeLessThanOrEqual(1920);
+  expect(dimensions.pageScroll).toBeLessThanOrEqual(3840);
 });

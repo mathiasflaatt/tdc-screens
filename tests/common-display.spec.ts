@@ -109,11 +109,13 @@ test('emphasizes independently timed next talks during breaks', async ({ page })
   const roomB = page.getByRole('article', { name: 'Room B' });
   await expect(roomA.getByText('Room A next talk')).toBeVisible();
   await expect(roomA.getByText('11:15', { exact: true })).toBeVisible();
-  await expect(roomA.getByText(/break/i)).toBeVisible();
+  await expect(roomA.getByText('Up next')).toBeVisible();
   await expect(roomB.getByText('Room B next talk')).toBeVisible();
   await expect(roomB.getByText('10:45', { exact: true })).toBeVisible();
-  await expect(roomB.getByText(/break/i)).toBeVisible();
   await expect(roomA.getByText('Room B next talk')).toHaveCount(0);
+  const banner = page.getByRole('status', { name: 'Shared programme' });
+  await expect(banner.getByText('Coffee break')).toBeVisible();
+  await expect(page.getByRole('article').getByText(/break/i)).toHaveCount(0);
 });
 
 test('emphasizes the next room talk and its actual start during lunch', async ({ page }) => {
@@ -122,7 +124,9 @@ test('emphasizes the next room talk and its actual start during lunch', async ({
   await page.goto('/common');
 
   const roomA = page.getByRole('article', { name: 'Room A' });
-  await expect(roomA.getByText('Lunch · next talk')).toBeVisible();
+  const banner = page.getByRole('status', { name: 'Shared programme' });
+  await expect(banner.getByText('Lunch', { exact: true }).first()).toBeVisible();
+  await expect(roomA.getByText('Up next')).toBeVisible();
   await expect(roomA.getByText('Room A afternoon talk')).toBeVisible();
   await expect(roomA.getByText('12:30', { exact: true })).toBeVisible();
 });
@@ -206,4 +210,87 @@ test('moves updated talks to their new room and removes cancelled talks on refre
   await expect(page.getByRole('article', { name: 'Room A' }).getByRole('heading', { name: longTitle })).toHaveCount(0);
   await expect(page.getByRole('article', { name: 'Room B' }).getByRole('heading', { name: 'Room B current talk' })).toHaveCount(0);
   await expect.poll(() => requests).toBe(2);
+});
+
+test('shows every talk room as a column with now, next, and remaining talks', async ({ page }) => {
+  const withSpeakers = {
+    ...schedule,
+    sessions: schedule.sessions.map((entry) => entry.id === 'a-now'
+      ? {
+        ...entry,
+        speakers: [
+          { id: 'sp-1', name: 'Mina Example', portraitUrl: 'https://images.example.test/mina.webp' },
+          { id: 'sp-2', name: 'Ola Example' },
+        ],
+      }
+      : entry),
+  };
+  await page.route('https://images.example.test/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><rect width="2" height="2" fill="#9bf7a9"/></svg>' }),
+  );
+  await page.unroute('**/api/schedule*');
+  await page.route('**/api/schedule*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(withSpeakers) }),
+  );
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.goto('/common');
+
+  const header = page.getByRole('main').locator('header');
+  await expect(header.getByRole('heading', { name: /common areas/i, level: 1 })).toBeVisible();
+  await expect(header.getByRole('img', { name: 'TDC' })).toBeVisible();
+  await expect(header.getByLabel('Oslo local time')).toHaveText('10:15');
+  await expect(page.getByText('All room screens')).toHaveCount(0);
+  await expect(page.getByText(/Europe\/Oslo/)).toHaveCount(0);
+  await expect(page.getByRole('link')).toHaveCount(0);
+
+  const columns = page.getByRole('article');
+  await expect(columns).toHaveCount(6);
+  const boxes = await columns.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().toJSON()));
+  for (let index = 1; index < boxes.length; index += 1) {
+    expect(boxes[index].x).toBeGreaterThan(boxes[index - 1].x + boxes[index - 1].width - 1);
+    expect(Math.abs(boxes[index].y - boxes[0].y)).toBeLessThan(1);
+  }
+
+  const roomA = page.getByRole('article', { name: 'Room A' });
+  await expect(roomA.getByText('Now', { exact: true })).toBeVisible();
+  await expect(roomA.getByRole('heading', { name: longTitle })).toBeVisible();
+  await expect(roomA.getByText('Mina Example')).toBeVisible();
+  await expect(roomA.getByRole('img', { name: /mina example portrait/i })).toBeVisible();
+  await expect(roomA.getByText('Ola Example')).toBeVisible();
+  await expect(roomA.getByText('Up next')).toBeVisible();
+  await expect(roomA.getByRole('heading', { name: 'Room A next talk' })).toBeVisible();
+  await expect(roomA.getByText('11:15', { exact: true })).toBeVisible();
+  await expect(roomA.getByRole('list', { name: 'Later in Room A' }).getByRole('listitem')).toHaveText([
+    /12:30\s*Room A afternoon talk/,
+  ]);
+  await expect(page.getByRole('status', { name: 'Shared programme' })).toHaveCount(0);
+});
+
+test('shows a shared plenary as a full-width banner above the columns', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.clock.setFixedTime(new Date('2026-10-19T08:42:00.000Z'));
+  await page.goto('/common');
+
+  const banner = page.getByRole('status', { name: 'Shared programme' });
+  await expect(banner.getByText('Opening plenary')).toBeVisible();
+  const bannerBox = await banner.boundingBox();
+  const columnsBox = await page.getByRole('region', { name: 'Talk rooms' }).boundingBox();
+  expect(bannerBox!.y + bannerBox!.height).toBeLessThanOrEqual(columnsBox!.y);
+  expect(bannerBox!.width).toBeCloseTo(columnsBox!.width, 0);
+});
+
+test('renders the landscape canvas identically on a 4K screen', async ({ page }) => {
+  await page.setViewportSize({ width: 3840, height: 2160 });
+  await page.goto('/common');
+
+  const canvas = page.getByRole('main', { name: 'Common-area conference overview' });
+  await expect(canvas.getByRole('heading', { name: longTitle })).toBeVisible();
+  expect(await canvas.boundingBox()).toEqual({ x: 0, y: 0, width: 3840, height: 2160 });
+  const dimensions = await canvas.evaluate((element) => ({
+    width: element.clientWidth,
+    height: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(dimensions).toMatchObject({ width: 1920, height: 1080 });
+  expect(dimensions.scrollHeight).toBeLessThanOrEqual(1080);
 });
