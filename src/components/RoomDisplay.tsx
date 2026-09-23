@@ -107,8 +107,8 @@ function ElsewhereRow({ display }: { display: CommonRoomDisplay }) {
   return (
     <li className={`elsewhere-row${display.current ? ' elsewhere-row--live' : ''}`}>
       <span className="elsewhere-room">{display.room.name}</span>
-      <span className="elsewhere-status">{label}</span>
-      <span className="elsewhere-title">{session?.title ?? 'No more talks'}</span>
+      <span className={session ? 'elsewhere-status' : 'elsewhere-status elsewhere-status--done'}>{label}</span>
+      {session && <span className="elsewhere-title">{session.title}</span>}
     </li>
   );
 }

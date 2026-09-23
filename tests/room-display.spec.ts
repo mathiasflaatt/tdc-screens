@@ -170,6 +170,26 @@ test('shows a plenary notice with its actual venue while keeping the room agenda
   await expect(page.getByText('Between sessions')).toBeVisible();
 });
 
+test('does not announce a plenum-flagged service session such as the evening party as a plenary', async ({ page }) => {
+  const withParty = structuredClone(schedule);
+  withParty.sessions.push(
+    {
+      id: 'party-plenum', roomId: '77', room: 'Aurora', title: 'Party',
+      startsAt: '2026-10-19T14:00:00', endsAt: '2026-10-19T23:00:00',
+      speakers: [], isServiceSession: true, isPlenumSession: true,
+    },
+  );
+  await page.unroute('**/api/schedule*');
+  await page.route('**/api/schedule*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(withParty) }),
+  );
+  await page.clock.setFixedTime(new Date('2026-10-19T12:15:00.000Z'));
+  await page.goto('/room/42');
+
+  await expect(page.getByRole('heading', { name: 'The last Andromeda talk' })).toBeVisible();
+  await expect(page.getByText(/Plenary session in/)).toHaveCount(0);
+});
+
 test('does not label an evening party as a break', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-10-19T16:30:00.000Z'));
   await page.goto('/room/77');
@@ -537,6 +557,30 @@ test('shows what is on in every other talk room in the elsewhere strip', async (
     /Cosmos 3AB\s*Now\s*Tracing the client with OpenTelemetry/,
   ]);
   await expect(elsewhere.getByText('Andromeda')).toHaveCount(0);
+});
+
+test('shows only "Done for today" for finished rooms in the elsewhere strip', async ({ page }) => {
+  const withDoneRoom = {
+    ...schedule,
+    rooms: [...schedule.rooms, { id: '99', name: 'Living room' }],
+    sessions: [
+      ...schedule.sessions,
+      {
+        id: 'living-morning', roomId: '99', room: 'Living room', title: 'Morning only talk',
+        startsAt: '2026-10-19T09:00:00', endsAt: '2026-10-19T09:40:00',
+        speakers: [], isServiceSession: false, isPlenumSession: false,
+      },
+    ],
+  };
+  await page.unroute('**/api/schedule*');
+  await page.route('**/api/schedule*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(withDoneRoom) }),
+  );
+  await page.goto('/room/42');
+
+  const elsewhere = page.getByRole('region', { name: 'Elsewhere now' });
+  await expect(elsewhere.getByRole('listitem')).toHaveText([/^Living room\s*Done for today$/]);
+  await expect(elsewhere.getByText('No more talks')).toHaveCount(0);
 });
 
 test('scales the fixed portrait canvas uniformly to fill a 4K portrait screen', async ({ page }) => {

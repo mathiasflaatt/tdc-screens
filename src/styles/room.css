@@ -115,5 +115,6 @@
 }
 .elsewhere-room { overflow: hidden; color: var(--color-fg-brand); font-family: var(--font-family-display); font-weight: var(--font-weight-bold); text-overflow: ellipsis; white-space: nowrap; }
 .elsewhere-status { color: var(--color-fg-muted); font-family: var(--font-family-mono); font-size: var(--font-size-40); white-space: nowrap; }
+.elsewhere-status--done { grid-column: span 2; }
 .elsewhere-row--live .elsewhere-status { color: var(--color-fg-accent); }
 .elsewhere-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: var(--line-height-tight); }
