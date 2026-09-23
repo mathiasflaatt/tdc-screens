@@ -14,6 +14,7 @@ import './styles/base.css';
 import './styles/button.css';
 import './styles/wordmark.css';
 import './styles/room.css';
+import './styles/duck.css';
 import './styles/common.css';
 import './styles/simulation.css';
 

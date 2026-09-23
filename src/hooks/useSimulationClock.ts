@@ -17,6 +17,8 @@ export type SimulationClock = {
   day: string;
   dayStart: number;
   dayEnd: number;
+  /** Increments on every seek or return to live, so views can tell jumps from ordinary ticking. */
+  jumps: number;
   seek: (instant: number) => void;
   togglePlaying: () => void;
   setSpeed: (speed: PlaybackSpeed) => void;
@@ -107,6 +109,7 @@ export function useSimulationClock(snapshot: ScheduleSnapshot | null): Simulatio
   const [active, setActive] = useState(simulationEnabledInUrl);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeedState] = useState(currentSimulationSpeedFromUrl);
+  const [jumps, setJumps] = useState(0);
   const simulationTimeRef = useRef(simulationTime);
   const dayStart = parseSessionInstant(`${day}T00:00:00`) ?? simulationTime;
   const dayEnd = conferenceDayEnd(day);
@@ -146,7 +149,9 @@ export function useSimulationClock(snapshot: ScheduleSnapshot | null): Simulatio
     day,
     dayStart,
     dayEnd,
+    jumps,
     seek: (instant) => {
+      setJumps((count) => count + 1);
       simulationTimeRef.current = instant;
       setActive(true);
       setSimulationTime(instant);
@@ -158,6 +163,7 @@ export function useSimulationClock(snapshot: ScheduleSnapshot | null): Simulatio
       if (active) writeSimulationUrl(simulationTimeRef.current, nextSpeed);
     },
     returnToLive: () => {
+      setJumps((count) => count + 1);
       setPlaying(false);
       setActive(false);
       setLiveTime(Date.now());

@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import {
   formatOsloDate,
   formatSessionRange,
@@ -10,8 +11,11 @@ import {
   type DisplayRoom,
   type DisplaySession,
   type RoomContext,
+  type RoomDisplayState,
   type ScheduleSnapshot,
 } from '../lib/schedule';
+import { DuckActor } from './duck/DuckActor';
+import { useDuckTransition } from './duck/useDuckTransition';
 import { KioskCanvas, KioskHeader, ROOM_CANVAS, SpeakerList } from './kiosk';
 import { SimulationControls } from './SimulationControls';
 import type { SimulationClock } from '../hooks/useSimulationClock';
@@ -113,33 +117,50 @@ function ElsewhereNow({ rooms }: { rooms: CommonRoomDisplay[] }) {
   );
 }
 
+type RoomScheduleProps = { snapshot: ScheduleSnapshot; roomId: string; display: RoomDisplayState; now: number };
+
+/** Featured card plus the rest of the room's day, as of `now`. */
+function RoomSchedule({ snapshot, roomId, display, now }: RoomScheduleProps) {
+  const sessionPhase = display.phase === 'empty' || display.phase === 'ended' || display.phase === 'complete'
+    ? null
+    : display.phase;
+  // With no featured session the room is finished or empty; a trailing agenda would contradict that.
+  const agenda = sessionPhase ? getRoomAgenda(snapshot, roomId, now, display.session) : [];
+  const breakContext = display.context?.type === 'break' || display.context?.type === 'lunch';
+
+  return (
+    <>
+      <div className="featured">
+        {display.context && <ContextNotice context={display.context} />}
+        {display.session && sessionPhase
+          ? <FeaturedSession session={display.session} phase={sessionPhase} />
+          : <EmptyRoom phase={display.phase === 'empty' || display.phase === 'complete' ? display.phase : 'ended'} />}
+        {breakContext && display.session && (
+          <p className="next-start">Next talk starts at {formatSessionStart(display.session)}</p>
+        )}
+      </div>
+      <RoomAgenda sessions={agenda} />
+    </>
+  );
+}
+
 type RoomDisplayProps = { snapshot: ScheduleSnapshot; room: DisplayRoom; stale: boolean; simulation: SimulationClock };
 
 export function RoomDisplay({ snapshot, room, stale, simulation }: RoomDisplayProps) {
   const now = simulation.now;
   const display = getRoomDisplayState(snapshot, room.id, now);
-  const sessionPhase = display.phase === 'empty' || display.phase === 'ended' || display.phase === 'complete'
-    ? null
-    : display.phase;
-  // With no featured session the room is finished or empty; a trailing agenda would contradict that.
-  const agenda = sessionPhase ? getRoomAgenda(snapshot, room.id, now, display.session) : [];
+  const duckRun = useDuckTransition(display, now, snapshot, simulation.jumps);
+  const stageRef = useRef<HTMLElement>(null);
+  // Until the duck swaps the cards, keep showing the room as it was just before the boundary.
+  const shown = duckRun?.stage === 'outgoing' ? duckRun.outgoing : { display, now };
   const elsewhere = getCommonDisplayState(snapshot, now).rooms.filter((other) => other.room.id !== room.id);
-  const breakContext = display.context?.type === 'break' || display.context?.type === 'lunch';
 
   return (
     <KioskCanvas {...ROOM_CANVAS} className="display-page room-canvas" label={`${room.name} room display`}>
       <KioskHeader title={room.name} now={now} stale={stale} />
-      <section className="room-body" aria-label={`Live schedule for ${room.name}`}>
-        <div className="featured">
-          {display.context && <ContextNotice context={display.context} />}
-          {display.session && sessionPhase
-            ? <FeaturedSession session={display.session} phase={sessionPhase} />
-            : <EmptyRoom phase={display.phase === 'empty' || display.phase === 'complete' ? display.phase : 'ended'} />}
-          {breakContext && display.session && (
-            <p className="next-start">Next talk starts at {formatSessionStart(display.session)}</p>
-          )}
-        </div>
-        <RoomAgenda sessions={agenda} />
+      <section ref={stageRef} className="room-body" aria-label={`Live schedule for ${room.name}`}>
+        <RoomSchedule snapshot={snapshot} roomId={room.id} display={shown.display} now={shown.now} />
+        {duckRun && <DuckActor key={duckRun.id} run={duckRun} stageRef={stageRef} />}
       </section>
       {display.phase !== 'complete' && <ElsewhereNow rooms={elsewhere} />}
       <SimulationControls

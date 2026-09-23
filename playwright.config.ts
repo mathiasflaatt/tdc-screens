@@ -15,6 +15,8 @@ export default defineConfig({
     timezoneId: 'America/Los_Angeles',
     viewport: { width: 1080, height: 1920 },
     headless: true,
+    // Keeps boundary swaps instant; tests/duck-transition.spec.ts opts back in to the duck.
+    reducedMotion: 'reduce',
     launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
       ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
       : undefined,
