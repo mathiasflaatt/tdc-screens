@@ -23,14 +23,15 @@ Open the local address printed by Vite to choose a room. Vite serves the same `/
 npm run typecheck
 npm test
 npm run test:api
+npm run smoke:sessionize   # opt-in, uses the live Sessionize feeds
 ```
+
+`npm test` also builds the app and checks direct links and reloads against the production output served with `vercel.json` routing (`npm run test:production`).
 
 The browser tests use controlled schedule responses and a frozen clock in an `America/Los_Angeles` browser context. They cover room selection and direct links, Oslo time, session changes, common-area room selection and layout, breaks and lunch, plenaries, unequal room start times, unknown rooms, five-minute refreshes, outage recovery, and unavailable local storage. The simulation-mode polling check depends on issue #6, which adds the simulated clock; this suite verifies refresh cadence and live schedule transitions independently. Install Playwright's Chromium with `npx playwright install chromium`. To use an existing Chrome or Chromium installation, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its executable path before running `npm test`.
 
 ## Deploy to Vercel
 
-Import this repository as a Vercel project. The project settings in `vercel.json` run `npm run build`, serve the `dist` output, and rewrite `/room/<id>` and `/common` to the single-page app. Vercel discovers the `/api/schedule` function from `api/schedule.js`. No database, environment variables, or scheduled job are needed.
-
-Every active screen polls the function every five minutes; the function calls Sessionize for each request and is not backed by a server cache. Estimate about 12 function invocations per active screen per hour, plus initial loads and retries. Vercel currently lists 1,000,000 monthly function invocations on Hobby, which is limited to personal, non-commercial use. A conference deployment may not qualify, so check the current [Hobby plan terms and usage](https://vercel.com/docs/plans/hobby) and [Function limits](https://vercel.com/docs/functions/limitations) for the account and deployment before choosing a plan. The function's upstream timeout is 10 seconds; Vercel's maximum function duration depends on plan and compute settings.
+See [docs/deployment.md](docs/deployment.md) for Vercel setup, the no-database design, TV/kiosk browser setup (full screen, no sleep, no scrollbars, 1080p versus 4K), and the live Sessionize smoke check. Hobby is limited to personal, non-commercial use, so check eligibility against Vercel's current terms before deploying.
 
 The visual direction follows the [TDC 2026 website](https://2026.trondheimdc.no/#coc): near-black surfaces, mint accents, a yellow highlight, and readable type.
