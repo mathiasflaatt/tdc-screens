@@ -1,12 +1,10 @@
 import { useRef } from 'react';
 import {
-  formatOsloDate,
   formatSessionRange,
   formatSessionStart,
   getCommonDisplayState,
   getRoomAgenda,
   getRoomDisplayState,
-  parseSessionInstant,
   type CommonRoomDisplay,
   type DisplayRoom,
   type DisplaySession,
@@ -53,9 +51,6 @@ function FeaturedSession({ session, phase }: { session: DisplaySession; phase: S
       </div>
       <h2 className="featured-title">{session.title}</h2>
       <SessionTags session={session} />
-      {phase === 'before' && (
-        <p className="featured-date">{formatOsloDate(parseSessionInstant(session.startsAt) ?? Date.now())}</p>
-      )}
       <SpeakerList speakers={session.speakers} />
     </article>
   );

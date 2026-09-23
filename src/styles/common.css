@@ -102,7 +102,6 @@
   text-wrap: pretty;
 }
 .column-card--now .column-card-title, .column-card--featured .column-card-title { font-size: var(--font-size-70); }
-.column-card-date { margin: 0; color: var(--color-fg-accent); font-family: var(--font-family-mono); font-size: var(--font-size-30); }
 .column-card .speaker-list { --speaker-size: 3.25rem; --speaker-text: var(--font-size-40); flex-direction: column; gap: var(--spacing-2); }
 
 .room-column-empty { margin: var(--spacing-4) 0 0; color: var(--color-fg-muted); font-size: var(--font-size-50); }

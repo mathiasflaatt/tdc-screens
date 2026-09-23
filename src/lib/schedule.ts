@@ -100,16 +100,6 @@ export function formatOsloTime(instant: number): string {
   return osloFormatter.format(instant);
 }
 
-export function formatOsloDate(instant: number): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: OSLO_TIME_ZONE,
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(instant);
-}
-
 function osloDateKey(instant: number): string {
   return osloDateKeyFormatter.format(instant);
 }

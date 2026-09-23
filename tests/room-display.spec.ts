@@ -179,13 +179,13 @@ test('does not label an evening party as a break', async ({ page }) => {
   await expect(page.getByText(/break/i)).toHaveCount(0);
 });
 
-test('shows the first session and its date before the conference starts', async ({ page }) => {
+test('shows the first session without a date before the conference starts', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-10-18T08:15:00.000Z'));
   await page.goto('/room/42');
 
   await expect(page.getByRole('heading', { name: 'A live talk for the room display' })).toBeVisible();
   await expect(page.getByText('Starts later')).toBeVisible();
-  await expect(page.getByText(/Monday, 19 October 2026/i)).toBeVisible();
+  await expect(page.getByText(/Monday, 19 October 2026/i)).toHaveCount(0);
 });
 
 test('shows the room end state while another room still has an event', async ({ page }) => {

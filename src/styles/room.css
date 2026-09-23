@@ -62,7 +62,6 @@
   text-transform: uppercase;
 }
 .session-tag--main { border-color: var(--color-fg-brand); color: var(--color-fg-brand); }
-.featured-date { margin: 0; color: var(--color-fg-accent); font-family: var(--font-family-mono); font-size: var(--kiosk-text-sm); }
 .featured-detail { margin: 0; color: var(--color-fg-muted); font-size: var(--kiosk-text-md); }
 .featured-card .speaker-list { --speaker-size: 6rem; --speaker-text: var(--kiosk-text-md); }
 
