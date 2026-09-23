@@ -4,10 +4,14 @@ import {
   formatOsloDate,
   formatOsloTime,
   formatSessionRange,
+  formatSessionStart,
+  parseSessionInstant,
   getRoomDisplayState,
+  getUpcomingRoomSessions,
   isScheduleSnapshot,
   type DisplayRoom,
   type DisplaySession,
+  type RoomContext,
   type ScheduleSnapshot,
 } from './lib/schedule';
 import './styles.css';
@@ -179,6 +183,20 @@ function ScreenSelector({ rooms, stale }: { rooms: DisplayRoom[]; stale: boolean
   );
 }
 
+function Speaker({ speaker }: { speaker: DisplaySession['speakers'][number] }) {
+  const initials = speaker.name.split(/\s+/).map((name) => name[0]).slice(0, 2).join('').toLocaleUpperCase();
+  return (
+    <div className="speaker-person">
+      {speaker.portraitUrl ? (
+        <img className="speaker-portrait" src={speaker.portraitUrl} alt={`${speaker.name} portrait`} />
+      ) : (
+        <span className="speaker-portrait speaker-portrait--fallback" aria-hidden="true">{initials}</span>
+      )}
+      <span className="speaker-name">{speaker.name}</span>
+    </div>
+  );
+}
+
 function SessionCard({ session, phase }: { session: DisplaySession; phase: 'live' | 'service' | 'before' | 'between' }) {
   const status = phase === 'live'
     ? 'Happening now'
@@ -186,15 +204,18 @@ function SessionCard({ session, phase }: { session: DisplaySession; phase: 'live
       ? 'On the programme'
       : phase === 'before'
         ? 'Starts later'
-        : 'Up next';
+        : 'Between sessions';
 
   return (
     <article className={`session-card session-card--${phase}`} aria-live="polite">
       <p className="session-status"><span className="status-dot" />{status}</p>
       <p className="session-kicker">{phase === 'live' ? 'NOW IN THIS ROOM' : phase === 'service' ? 'ROOM NOTICE' : 'COMING UP IN THIS ROOM'}</p>
       <h2>{session.title}</h2>
+      {phase === 'before' && <p className="session-date">{formatOsloDate(parseSessionInstant(session.startsAt) ?? Date.now())}</p>}
       {session.speakers.length > 0 && (
-        <p className="session-speakers">{session.speakers.map((speaker) => speaker.name).join(' · ')}</p>
+        <div className="session-speakers" aria-label="Speakers">
+          {session.speakers.map((speaker) => <Speaker key={speaker.id} speaker={speaker} />)}
+        </div>
       )}
       <div className="session-time">
         <span className="session-time-label">SCHEDULED TIME</span>
@@ -204,20 +225,63 @@ function SessionCard({ session, phase }: { session: DisplaySession; phase: 'live
   );
 }
 
-function EmptyRoomCard({ phase }: { phase: 'ended' | 'empty' }) {
+function ContextNotice({ context }: { context: RoomContext }) {
+  if (context.type === 'plenary') {
+    return <p className="room-context room-context--plenary" role="status">Plenary session in <strong>{context.room}</strong></p>;
+  }
+  return (
+    <p className={`room-context room-context--${context.type}`} role="status">
+      {context.type === 'lunch' ? 'Shared lunch' : 'Shared break'}
+    </p>
+  );
+}
+
+function EmptyRoomCard({ phase }: { phase: 'ended' | 'empty' | 'complete' }) {
+  const heading = phase === 'complete'
+    ? 'Programme complete'
+    : phase === 'ended'
+      ? 'No more sessions today'
+      : 'No sessions scheduled';
+  const detail = phase === 'complete'
+    ? 'The conference programme has ended.'
+    : phase === 'ended'
+      ? 'This room has no further sessions today.'
+      : 'Check another room for the next talk.';
+
   return (
     <article className="session-card empty-session" aria-live="polite">
       <p className="session-kicker">ROOM UPDATE</p>
-      <h2>{phase === 'ended' ? 'No more sessions today' : 'No sessions scheduled'}</h2>
-      <p className="session-speakers">Check another room for the next talk.</p>
+      <h2>{heading}</h2>
+      <p className="session-speakers">{detail}</p>
     </article>
+  );
+}
+
+function UpcomingAgenda({ sessions }: { sessions: DisplaySession[] }) {
+  if (sessions.length === 0) return null;
+  return (
+    <section className="upcoming-agenda" aria-label="Upcoming room agenda">
+      <h2>Coming up in this room</h2>
+      <ol>
+        {sessions.map((session) => (
+          <li key={session.id}>
+            <time>{formatSessionRange(session)}</time>
+            <span>{session.title}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 
 function RoomDisplay({ snapshot, room, stale }: { snapshot: ScheduleSnapshot; room: DisplayRoom; stale: boolean }) {
   const now = useLocalClock();
   const display = getRoomDisplayState(snapshot, room.id, now);
-  const sessionPhase = display.phase === 'empty' || display.phase === 'ended' ? null : display.phase;
+  const sessionPhase = display.phase === 'empty' || display.phase === 'ended' || display.phase === 'complete'
+    ? null
+    : display.phase;
+  const upcoming = getUpcomingRoomSessions(snapshot, room.id, now, display.session);
+  const breakContext = display.context?.type === 'break' || display.context?.type === 'lunch';
 
   return (
     <main className="display-page">
@@ -234,14 +298,20 @@ function RoomDisplay({ snapshot, room, stale }: { snapshot: ScheduleSnapshot; ro
           </time>
           <span className="clock-caption">LOCAL TIME · TRONDHEIM</span>
         </div>
+        {stale && <StaleNotice />}
       </header>
 
-      {stale && <StaleNotice />}
-
       <section className="display-content" aria-label={`Live schedule for ${room.name}`}>
-        {display.session && sessionPhase
-          ? <SessionCard session={display.session} phase={sessionPhase} />
-          : <EmptyRoomCard phase={display.phase === 'empty' ? 'empty' : 'ended'} />}
+        <div className="featured-content">
+          {display.context && <ContextNotice context={display.context} />}
+          {display.session && sessionPhase
+            ? <SessionCard session={display.session} phase={sessionPhase} />
+            : <EmptyRoomCard phase={display.phase === 'empty' ? 'empty' : display.phase === 'complete' ? 'complete' : 'ended'} />}
+          {breakContext && display.session && (
+            <p className="next-start">Next talk starts at {formatSessionStart(display.session)}</p>
+          )}
+        </div>
+        <UpcomingAgenda sessions={upcoming} />
       </section>
 
       <footer className="display-footer">

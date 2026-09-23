@@ -4,6 +4,7 @@ export { parseSessionInstant } from './time.js';
 export const OSLO_TIME_ZONE = 'Europe/Oslo';
 
 export type DisplayRoom = { id: string; name: string };
+export type DisplaySpeaker = { id: string; name: string; portraitUrl?: string };
 
 export type DisplaySession = {
   id: string;
@@ -12,7 +13,7 @@ export type DisplaySession = {
   title: string;
   startsAt: string;
   endsAt: string;
-  speakers: Array<{ id: string; name: string }>;
+  speakers: DisplaySpeaker[];
   isServiceSession: boolean;
   isPlenumSession: boolean;
 };
@@ -23,16 +24,31 @@ export type ScheduleSnapshot = {
   fetchedAt: string;
 };
 
+export type RoomContext =
+  | { type: 'break' }
+  | { type: 'lunch' }
+  | { type: 'plenary'; room: string };
+
 export type RoomDisplayState = {
-  phase: 'live' | 'service' | 'before' | 'between' | 'ended' | 'empty';
+  phase: 'live' | 'service' | 'before' | 'between' | 'ended' | 'empty' | 'complete';
   session?: DisplaySession;
+  context?: RoomContext;
 };
+
+type TimedSession = { session: DisplaySession; start: number; end: number };
 
 const osloFormatter = new Intl.DateTimeFormat('en-GB', {
   timeZone: OSLO_TIME_ZONE,
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
+});
+
+const osloDateKeyFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: OSLO_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
 });
 
 export function formatOsloTime(instant: number): string {
@@ -49,6 +65,21 @@ export function formatOsloDate(instant: number): string {
   }).format(instant);
 }
 
+function osloDateKey(instant: number): string {
+  return osloDateKeyFormatter.format(instant);
+}
+
+function timedSessions(snapshot: ScheduleSnapshot): TimedSession[] {
+  return snapshot.sessions
+    .map((session) => ({
+      session,
+      start: parseSessionInstant(session.startsAt),
+      end: parseSessionInstant(session.endsAt),
+    }))
+    .filter((entry): entry is TimedSession => entry.start !== null && entry.end !== null)
+    .sort((left, right) => left.start - right.start);
+}
+
 export function formatSessionRange(session: DisplaySession): string {
   const start = parseSessionInstant(session.startsAt);
   const end = parseSessionInstant(session.endsAt);
@@ -56,29 +87,108 @@ export function formatSessionRange(session: DisplaySession): string {
   return `${formatOsloTime(start)}–${formatOsloTime(end)}`;
 }
 
+export function formatSessionStart(session: DisplaySession): string {
+  const start = parseSessionInstant(session.startsAt);
+  return start === null ? '' : formatOsloTime(start);
+}
+
+function contextForService(session: DisplaySession): RoomContext | null {
+  if (!session.isServiceSession) return null;
+  const title = session.title.toLocaleLowerCase();
+  if (title.includes('lunch')) return { type: 'lunch' };
+  if (title.includes('break') || title.includes('coffee')) return { type: 'break' };
+  return null;
+}
+
+function currentEntry(sessions: TimedSession[], now: number): TimedSession | undefined {
+  return sessions.find(({ start, end }) => start <= now && now < end);
+}
+
+function nextRoomTalk(sessions: TimedSession[], now: number): TimedSession | undefined {
+  return sessions.find(({ session, start }) => !session.isServiceSession && start > now);
+}
+
+function nextPlenaryContext(
+  sessions: TimedSession[],
+  roomId: string,
+  now: number,
+): RoomContext | undefined {
+  const plenary = sessions.find(({ session, start, end }) =>
+    session.isPlenumSession && session.roomId !== roomId && start <= now && now < end,
+  );
+  return plenary ? { type: 'plenary', room: plenary.session.room } : undefined;
+}
+
 export function getRoomDisplayState(
   snapshot: ScheduleSnapshot,
   roomId: string,
   now: number,
 ): RoomDisplayState {
-  const sessions = snapshot.sessions
-    .filter((session) => session.roomId === roomId)
-    .map((session) => ({ session, start: parseSessionInstant(session.startsAt), end: parseSessionInstant(session.endsAt) }))
-    .filter((entry) => entry.start !== null && entry.end !== null)
-    .sort((left, right) => left.start! - right.start!);
+  const allSessions = timedSessions(snapshot);
+  if (allSessions.length === 0) return { phase: 'empty' };
 
-  if (sessions.length === 0) return { phase: 'empty' };
+  const programEnd = Math.max(...allSessions.map(({ end }) => end));
+  if (now >= programEnd) return { phase: 'complete' };
 
-  const current = sessions.find(({ start, end }) => start! <= now && now < end!);
-  if (current) return { phase: current.session.isServiceSession ? 'service' : 'live', session: current.session };
+  const roomSessions = allSessions.filter(({ session }) => session.roomId === roomId);
+  if (roomSessions.length === 0) return { phase: 'empty' };
 
-  const next = sessions.find(({ session, start }) => !session.isServiceSession && start! > now);
-  if (next) {
-    const firstStart = sessions[0].start!;
-    return { phase: now < firstStart ? 'before' : 'between', session: next.session };
+  const programStart = Math.min(...allSessions.map(({ start }) => start));
+  if (now < programStart) {
+    const firstTalk = roomSessions.find(({ session }) => !session.isServiceSession);
+    return firstTalk ? { phase: 'before', session: firstTalk.session } : { phase: 'empty' };
   }
 
-  return { phase: 'ended' };
+  const localCurrent = currentEntry(roomSessions, now);
+  if (localCurrent) {
+    const serviceContext = contextForService(localCurrent.session);
+    if (serviceContext) {
+      const nextTalk = nextRoomTalk(roomSessions, now);
+      if (nextTalk) return { phase: 'between', session: nextTalk.session, context: serviceContext };
+    }
+    return {
+      phase: localCurrent.session.isServiceSession ? 'service' : 'live',
+      session: localCurrent.session,
+    };
+  }
+
+  const localDate = osloDateKey(now);
+  const todaySessions = roomSessions.filter(({ start }) => osloDateKey(start) === localDate);
+  const nextTalk = todaySessions.find(({ session, start }) => !session.isServiceSession && start > now);
+  if (!nextTalk) return { phase: 'ended' };
+
+  const firstTalkToday = todaySessions.find(({ session }) => !session.isServiceSession);
+  const phase = firstTalkToday && now < firstTalkToday.start ? 'before' : 'between';
+  const sharedService = allSessions.find(({ session, start, end }) =>
+    session.roomId !== roomId &&
+    start <= now && now < end &&
+    contextForService(session) !== null,
+  );
+  const context = sharedService
+    ? contextForService(sharedService.session) ?? undefined
+    : nextPlenaryContext(allSessions, roomId, now);
+  return { phase, session: nextTalk.session, context };
+}
+
+export function getUpcomingRoomSessions(
+  snapshot: ScheduleSnapshot,
+  roomId: string,
+  now: number,
+  featuredSession?: DisplaySession,
+): DisplaySession[] {
+  const dateKey = featuredSession
+    ? osloDateKey(parseSessionInstant(featuredSession.startsAt) ?? now)
+    : osloDateKey(now);
+  return timedSessions(snapshot)
+    .filter(({ session, start }) =>
+      session.roomId === roomId &&
+      !session.isServiceSession &&
+      start > now &&
+      osloDateKey(start) === dateKey &&
+      session.id !== featuredSession?.id,
+    )
+    .slice(0, 2)
+    .map(({ session }) => session);
 }
 
 export function isScheduleSnapshot(value: unknown): value is ScheduleSnapshot {
@@ -105,7 +215,12 @@ export function isScheduleSnapshot(value: unknown): value is ScheduleSnapshot {
     ) return false;
 
     const validSpeakers = session.speakers.every((speaker) =>
-      Boolean(speaker && typeof speaker.id === 'string' && speaker.id && typeof speaker.name === 'string' && speaker.name),
+      Boolean(
+        speaker &&
+        typeof speaker.id === 'string' && speaker.id &&
+        typeof speaker.name === 'string' && speaker.name &&
+        (speaker.portraitUrl === undefined || typeof speaker.portraitUrl === 'string'),
+      ),
     );
     const start = parseSessionInstant(session.startsAt);
     const end = parseSessionInstant(session.endsAt);

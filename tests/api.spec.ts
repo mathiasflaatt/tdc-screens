@@ -24,7 +24,7 @@ const gridSmart = [
 ];
 
 const sessionFeed = [{ id: 'talk-1', title: 'Enriched talk title', speakers: ['speaker-1'] }];
-const speakerFeed = [{ id: 'speaker-1', fullName: 'Mina Example' }];
+const speakerFeed = [{ id: 'speaker-1', fullName: 'Mina Example', profilePicture: 'https://cdn.example.test/mina.webp' }];
 
 test('builds the same-origin schedule from the fixed Sessionize feeds and ignores upstream URL input', async () => {
   const { createScheduleHandler } = await import('../api/schedule.js');
@@ -79,11 +79,19 @@ test('builds the same-origin schedule from the fixed Sessionize feeds and ignore
       title: 'Enriched talk title',
       startsAt: '2026-10-19T10:00:00',
       endsAt: '2026-10-19T10:40:00',
-      speakers: [{ id: 'speaker-1', name: 'Mina Example' }],
+      speakers: [{ id: 'speaker-1', name: 'Mina Example', portraitUrl: 'https://cdn.example.test/mina.webp' }],
       isServiceSession: false,
       isPlenumSession: false,
     },
   ]);
+
+  responses.set('https://sessionize.com/api/v2/1diujeu9/view/Speakers?under=True', []);
+  await handler({ method: 'GET', url: '/api/schedule' }, response);
+  expect(response.statusCode).toBe(200);
+  const unenrichedSnapshot = response.body as { sessions: Array<{ title: string; speakers: Array<{ name: string }> }> };
+  expect(unenrichedSnapshot.sessions).toHaveLength(1);
+  expect(unenrichedSnapshot.sessions[0].title).toBe('Enriched talk title');
+  expect(unenrichedSnapshot.sessions[0].speakers).toEqual([{ id: 'speaker-1', name: 'Grid speaker name' }]);
 
   const malformedGridSmart = structuredClone(gridSmart);
   malformedGridSmart[0].rooms[0].sessions[0].startsAt = 'not-a-date';

@@ -7,7 +7,7 @@ const SESSIONS_URL = 'https://sessionize.com/api/v2/1diujeu9/view/Sessions?under
 const SPEAKERS_URL = 'https://sessionize.com/api/v2/1diujeu9/view/Speakers?under=True';
 const REQUEST_TIMEOUT_MS = 10_000;
 
-/** @typedef {{ id: string, name: string }} Speaker */
+/** @typedef {{ id: string, name: string, portraitUrl?: string }} Speaker */
 /** @typedef {{ id: string, name: string }} Room */
 /** @typedef {{ id: string, roomId: string, room: string, title: string, startsAt: string, endsAt: string, speakers: Speaker[], isServiceSession: boolean, isPlenumSession: boolean }} DisplaySession */
 /** @typedef {{ rooms: Room[], sessions: DisplaySession[], fetchedAt: string }} ScheduleSnapshot */
@@ -41,6 +41,28 @@ function speakerName(speaker) {
   return [asText(speaker.firstName), asText(speaker.lastName)].filter(Boolean).join(' ');
 }
 
+/** @param {unknown} speaker */
+function speakerPortraitUrl(speaker) {
+  if (!isRecord(speaker)) return undefined;
+  for (const key of ['profilePicture', 'portraitUrl', 'photoUrl']) {
+    const candidate = asText(speaker[key]);
+    if (!candidate) continue;
+    try {
+      const url = new URL(candidate);
+      if (url.protocol === 'https:' || url.protocol === 'http:') return candidate;
+    } catch {
+      // Invalid or relative portrait URLs are optional enrichment.
+    }
+  }
+  return undefined;
+}
+
+/** @param {string} id @param {string} name @param {unknown} source */
+function makeSpeaker(id, name, source) {
+  const portraitUrl = speakerPortraitUrl(source);
+  return portraitUrl ? { id, name, portraitUrl } : { id, name };
+}
+
 /**
  * Build the screen snapshot from Sessionize's stable GridSmart schedule and optional detail feeds.
  * Missing session or speaker enrichment never removes a valid GridSmart schedule entry.
@@ -69,7 +91,7 @@ export function normaliseSessionizeFeeds(feeds, fetchedAt = new Date()) {
     if (isRecord(speaker)) {
       const id = asId(speaker.id);
       const name = speakerName(speaker);
-      if (id && name) speakersById.set(id, { id, name });
+      if (id && name) speakersById.set(id, makeSpeaker(id, name, speaker));
     }
   }
 
@@ -115,7 +137,9 @@ export function normaliseSessionizeFeeds(feeds, fetchedAt = new Date()) {
           const name = (isRecord(reference) && speakerName(reference))
             || (isRecord(gridSpeaker) && speakerName(gridSpeaker))
             || '';
-          return name ? [{ id: speakerId, name }] : [];
+          if (!name) return [];
+          const source = speakerPortraitUrl(reference) ? reference : gridSpeaker;
+          return [makeSpeaker(speakerId, name, source)];
         });
 
         const normalizedRoom = { id: roomId, name: roomName };
