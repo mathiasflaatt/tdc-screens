@@ -36,14 +36,15 @@ export function SimulationControls({
       <div className="simulation-controls-heading">
         <p className="simulation-mode-label" role="status">Simulated time</p>
         <div className="simulation-links">
-          {switchHref && switchLabel && <a href={simulationHref(switchHref, simulation)}>{switchLabel}</a>}
-          <button type="button" onClick={simulation.returnToLive}>Back to live</button>
+          {switchHref && switchLabel && <a className="btn btn--ghost btn--sm" href={simulationHref(switchHref, simulation)}>{switchLabel}</a>}
+          <button className="btn btn--primary btn--sm" type="button" onClick={simulation.returnToLive}>Back to live</button>
         </div>
       </div>
       <div className="simulation-controls-body">
         <label className="simulation-time-control">
           <span>Simulation time</span>
-          <input
+            <input
+              className="simulation-time-input"
             type="time"
             step="60"
             value={formatOsloTime(simulation.now)}
@@ -56,6 +57,7 @@ export function SimulationControls({
         <label className="simulation-scrubber-control">
           <span>Day scrubber</span>
           <input
+            className="simulation-scrubber-input"
             aria-label="Day scrubber"
             type="range"
             list="simulation-boundaries"
@@ -72,11 +74,11 @@ export function SimulationControls({
           </datalist>
         </label>
         <div className="simulation-transport">
-          <button type="button" disabled={previousBoundary === undefined} onClick={() => previousBoundary !== undefined && simulation.seek(previousBoundary)}>
+          <button className="btn btn--ghost btn--sm" type="button" disabled={previousBoundary === undefined} onClick={() => previousBoundary !== undefined && simulation.seek(previousBoundary)}>
             Previous boundary
           </button>
-          <button type="button" onClick={simulation.togglePlaying}>{simulation.playing ? 'Pause' : 'Play'}</button>
-          <button type="button" disabled={nextBoundary === undefined} onClick={() => nextBoundary !== undefined && simulation.seek(nextBoundary)}>
+          <button className="btn btn--primary btn--sm" type="button" onClick={simulation.togglePlaying}>{simulation.playing ? 'Pause' : 'Play'}</button>
+          <button className="btn btn--ghost btn--sm" type="button" disabled={nextBoundary === undefined} onClick={() => nextBoundary !== undefined && simulation.seek(nextBoundary)}>
             Next boundary
           </button>
         </div>
@@ -84,6 +86,7 @@ export function SimulationControls({
           <legend>Playback speed</legend>
           {PLAYBACK_SPEEDS.map((playbackSpeed) => (
             <button
+              className={`btn btn--sm${simulation.speed === playbackSpeed ? ' btn--primary' : ' btn--ghost'}`}
               type="button"
               key={playbackSpeed}
               aria-pressed={simulation.speed === playbackSpeed}
