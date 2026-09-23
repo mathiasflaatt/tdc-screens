@@ -148,8 +148,9 @@ function nextPlenaryContext(
   roomId: string,
   now: number,
 ): RoomContext | undefined {
+  // Service entries flagged as plenum (registration, the evening party) are not talks to send people to.
   const plenary = sessions.find(({ session, start, end }) =>
-    session.isPlenumSession && session.roomId !== roomId && start <= now && now < end,
+    session.isPlenumSession && !session.isServiceSession && session.roomId !== roomId && start <= now && now < end,
   );
   return plenary ? { type: 'plenary', room: plenary.session.room } : undefined;
 }
