@@ -1,84 +1,102 @@
+/* Floating test-mode panel: portalled to <body>, dragged by its handle, collapsible. */
 .simulation-controls {
+  position: fixed;
+  z-index: 1000;
   display: flex;
-  flex: 0 0 auto;
-  min-width: 0;
+  width: 20rem;
+  max-width: calc(100vw - 2rem);
   flex-direction: column;
-  gap: var(--spacing-3);
-  padding: var(--spacing-4) var(--spacing-5);
   border: 2px solid var(--color-border-brand);
   border-radius: var(--radius-lg);
   background: var(--color-bg-surface);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+  color: var(--color-fg-base);
+  font-family: var(--font-family-sans);
+  /* Follows the pointer directly; never animate position. */
+  transition-property: none;
+}
+.simulation-controls.is-collapsed { width: auto; }
+
+.simulation-controls-handle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-2) var(--spacing-2) var(--spacing-3);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.simulation-controls-handle:active { cursor: grabbing; }
+
+.simulation-grip {
+  width: 0.625rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  background-image: radial-gradient(circle, var(--color-fg-muted) 1.5px, transparent 1.6px);
+  background-size: 5px 5px;
 }
 
-.simulation-controls-heading,
-.simulation-links,
-.simulation-transport,
-.simulation-speed-control {
+.simulation-mode-label {
+  flex: 1 1 auto;
+  margin: 0;
+  color: var(--color-fg-brand);
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-20);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.simulation-collapsed-time {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-30);
+  font-variant-numeric: tabular-nums;
+}
+
+.simulation-icon-button {
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-fg-base);
+  font-size: var(--font-size-30);
+  cursor: pointer;
+}
+.simulation-icon-button:hover { background: var(--color-bg-base); }
+
+.simulation-controls-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: 0 var(--spacing-3) var(--spacing-3);
+}
+.simulation-controls-body[hidden] { display: none; }
+
+.simulation-row {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
   min-width: 0;
 }
 
-.simulation-controls-heading { justify-content: space-between; }
-.simulation-links { justify-content: end; }
-.simulation-mode-label {
-  margin: 0;
-  color: var(--color-fg-brand);
-  font-family: var(--font-family-display);
-  font-size: var(--font-size-50);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: var(--letter-spacing-wide);
-  text-transform: uppercase;
-}
-
 .simulation-controls .btn {
-  min-height: 2.75rem;
-  padding: var(--spacing-3) var(--spacing-4);
-  font-size: var(--font-size-30);
+  min-height: 2.25rem;
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: var(--font-size-20);
   white-space: nowrap;
 }
-
-.simulation-controls .btn:disabled { cursor: default; opacity: 0.5; }
-.simulation-controls .btn:disabled:hover { transform: none; }
-.simulation-controls button:focus-visible,
-.simulation-controls a:focus-visible,
-.simulation-controls input:focus-visible { outline-offset: 2px; }
-
-.simulation-controls-body {
-  display: grid;
-  grid-template-columns: minmax(10rem, 12rem) minmax(18rem, 1fr) auto auto;
-  grid-template-areas: "time scrub transport speed";
-  align-items: end;
-  gap: var(--spacing-3) var(--spacing-4);
-  min-width: 0;
-}
-
-.simulation-time-control,
-.simulation-scrubber-control {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--spacing-2);
-}
-.simulation-time-control { grid-area: time; }
-.simulation-scrubber-control { grid-area: scrub; }
-.simulation-time-control > span,
-.simulation-scrubber-control > span,
-.simulation-speed-control legend {
-  color: var(--color-fg-muted);
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-20);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: var(--letter-spacing-wide);
-  text-transform: uppercase;
-}
+.simulation-controls .btn:hover { transform: none; }
+.simulation-play { min-width: 5rem; }
 
 .simulation-time-input {
-  width: 100%;
+  flex: 1 1 auto;
   min-width: 0;
-  min-height: 2.75rem;
-  padding: var(--spacing-2) var(--spacing-3);
+  min-height: 2.25rem;
+  padding: var(--spacing-1) var(--spacing-2);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   background: var(--color-bg-base);
@@ -88,30 +106,23 @@
   font-size: var(--font-size-40);
   font-variant-numeric: tabular-nums;
 }
+
+.simulation-speed-tag {
+  color: var(--color-fg-muted);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-20);
+  font-weight: var(--font-weight-bold);
+}
+
 .simulation-scrubber-input {
   width: 100%;
   min-width: 0;
-  margin: var(--spacing-2) 0 var(--spacing-3);
+  margin: var(--spacing-1) 0;
   accent-color: var(--color-fg-brand);
 }
-.simulation-transport { grid-area: transport; justify-content: center; }
-.simulation-speed-control {
-  grid-area: speed;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.simulation-speed-control legend { float: left; width: 100%; margin-bottom: var(--spacing-2); }
-.simulation-speed-control .btn { min-width: 3.25rem; }
 
-@media (max-width: 1280px) {
-  .simulation-controls { padding: var(--spacing-3) var(--spacing-4); }
-  .simulation-controls-body {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
-    grid-template-areas: "time scrub" "transport transport" "speed speed";
-  }
-  .simulation-transport { justify-content: space-between; }
-  .simulation-transport .btn { flex: 1 1 auto; }
-  .simulation-speed-control { justify-content: center; }
-  .simulation-speed-control legend { width: auto; margin: 0 auto 0 0; white-space: nowrap; }
-}
+.simulation-links .btn { flex: 1 1 0; }
+
+.simulation-controls button:focus-visible,
+.simulation-controls a:focus-visible,
+.simulation-controls input:focus-visible { outline-offset: 2px; }

@@ -3,17 +3,15 @@ import { parseSessionInstant, type ScheduleSnapshot } from '../lib/schedule';
 
 const SIMULATION_MODE_PARAMETER = 'test';
 const SIMULATION_TIME_PARAMETER = 'at';
-const SIMULATION_SPEED_PARAMETER = 'speed';
+const LEGACY_SPEED_PARAMETER = 'speed';
 
-export const PLAYBACK_SPEEDS = [1, 10, 60] as const;
-
-export type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number];
+/** Simulated minutes per real second while playing. */
+export const PLAYBACK_SPEED = 60;
 
 export type SimulationClock = {
   active: boolean;
   now: number;
   playing: boolean;
-  speed: PlaybackSpeed;
   day: string;
   dayStart: number;
   dayEnd: number;
@@ -21,7 +19,6 @@ export type SimulationClock = {
   jumps: number;
   seek: (instant: number) => void;
   togglePlaying: () => void;
-  setSpeed: (speed: PlaybackSpeed) => void;
   returnToLive: () => void;
 };
 
@@ -69,35 +66,28 @@ function currentSimulationTimeFromUrl(day: string): number | null {
   return parseSessionInstant(`${day}T${time}:00`);
 }
 
-function currentSimulationSpeedFromUrl(): PlaybackSpeed {
-  if (!simulationEnabledInUrl()) return 1;
-  const value = Number(new URLSearchParams(window.location.search).get(SIMULATION_SPEED_PARAMETER));
-  return PLAYBACK_SPEEDS.find((playbackSpeed) => playbackSpeed === value) ?? 1;
-}
-
-function setSimulationUrlParameters(url: URL, instant: number | null, speed: PlaybackSpeed): void {
+function setSimulationUrlParameters(url: URL, instant: number | null): void {
+  // Older preview links carried a speed; playback is now always PLAYBACK_SPEED.
+  url.searchParams.delete(LEGACY_SPEED_PARAMETER);
   if (instant === null) {
     url.searchParams.delete(SIMULATION_MODE_PARAMETER);
     url.searchParams.delete(SIMULATION_TIME_PARAMETER);
-    url.searchParams.delete(SIMULATION_SPEED_PARAMETER);
   } else {
     url.searchParams.set(SIMULATION_MODE_PARAMETER, 'true');
     url.searchParams.set(SIMULATION_TIME_PARAMETER, formatOsloDateTimeInput(instant).slice(11, 16));
-    if (speed === 1) url.searchParams.delete(SIMULATION_SPEED_PARAMETER);
-    else url.searchParams.set(SIMULATION_SPEED_PARAMETER, String(speed));
   }
 }
 
-function writeSimulationUrl(instant: number | null, speed: PlaybackSpeed): void {
+function writeSimulationUrl(instant: number | null): void {
   const url = new URL(window.location.href);
-  setSimulationUrlParameters(url, instant, speed);
+  setSimulationUrlParameters(url, instant);
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
 export function simulationHref(path: string, simulation: SimulationClock): string {
   const url = new URL(window.location.href);
   url.pathname = path;
-  setSimulationUrlParameters(url, simulation.active ? simulation.now : null, simulation.speed);
+  setSimulationUrlParameters(url, simulation.active ? simulation.now : null);
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
@@ -108,7 +98,6 @@ export function useSimulationClock(snapshot: ScheduleSnapshot | null): Simulatio
   const [liveTime, setLiveTime] = useState(() => Date.now());
   const [active, setActive] = useState(simulationEnabledInUrl);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeedState] = useState(currentSimulationSpeedFromUrl);
   const [jumps, setJumps] = useState(0);
   const simulationTimeRef = useRef(simulationTime);
   const dayStart = parseSessionInstant(`${day}T00:00:00`) ?? simulationTime;
@@ -120,7 +109,7 @@ export function useSimulationClock(snapshot: ScheduleSnapshot | null): Simulatio
     if (fromUrl === null) return;
     simulationTimeRef.current = fromUrl;
     setSimulationTime(fromUrl);
-    writeSimulationUrl(fromUrl, speed);
+    writeSimulationUrl(fromUrl);
   }, [active, day]);
 
   useEffect(() => {
@@ -131,21 +120,20 @@ export function useSimulationClock(snapshot: ScheduleSnapshot | null): Simulatio
       previousRealTime = realTime;
       setLiveTime(realTime);
       if (active && playing) {
-        const next = Math.min(simulationTimeRef.current + elapsed * speed, dayEnd);
+        const next = Math.min(simulationTimeRef.current + elapsed * PLAYBACK_SPEED, dayEnd);
         simulationTimeRef.current = next;
         setSimulationTime(next);
-        writeSimulationUrl(next, speed);
+        writeSimulationUrl(next);
         if (next >= dayEnd) setPlaying(false);
       }
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [active, dayEnd, playing, speed]);
+  }, [active, dayEnd, playing]);
 
   return {
     active,
     now: active ? simulationTime : liveTime,
     playing,
-    speed,
     day,
     dayStart,
     dayEnd,
@@ -155,19 +143,15 @@ export function useSimulationClock(snapshot: ScheduleSnapshot | null): Simulatio
       simulationTimeRef.current = instant;
       setActive(true);
       setSimulationTime(instant);
-      writeSimulationUrl(instant, speed);
+      writeSimulationUrl(instant);
     },
     togglePlaying: () => setPlaying((value) => !value),
-    setSpeed: (nextSpeed) => {
-      setSpeedState(nextSpeed);
-      if (active) writeSimulationUrl(simulationTimeRef.current, nextSpeed);
-    },
     returnToLive: () => {
       setJumps((count) => count + 1);
       setPlaying(false);
       setActive(false);
       setLiveTime(Date.now());
-      writeSimulationUrl(null, speed);
+      writeSimulationUrl(null);
     },
   };
 }

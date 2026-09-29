@@ -99,7 +99,7 @@ test('seeking across a boundary swaps the card without the duck', async ({ page 
   await openRoomAt(page, '2026-10-19T08:15:00.000Z', '/room/42?test=true&at=10%3A19');
   await expect(featuredTitle(page)).toHaveText('The first duck-delivered talk');
 
-  await page.getByRole('button', { name: 'Next boundary' }).click();
+  await page.getByLabel('Simulation time').fill('10:20');
   await expect(featuredTitle(page)).toHaveText('The talk pulled up from the agenda');
   await expect(duck(page)).toHaveCount(0);
 });
