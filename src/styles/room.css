@@ -39,6 +39,7 @@
   font-family: var(--font-family-display);
   font-size: var(--kiosk-text-lg);
   font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .featured-title {
@@ -87,6 +88,7 @@
   color: var(--color-fg-accent);
   font-family: var(--font-family-display);
   font-size: var(--kiosk-text-sm);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .agenda-title {

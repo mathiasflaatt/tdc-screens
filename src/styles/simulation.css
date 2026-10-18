@@ -51,6 +51,7 @@
 .simulation-collapsed-time {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-30);
+  font-variant-numeric: tabular-nums;
 }
 
 .simulation-icon-button {
@@ -103,6 +104,7 @@
   font: inherit;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-40);
+  font-variant-numeric: tabular-nums;
 }
 
 .simulation-speed-tag {
