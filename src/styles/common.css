@@ -83,7 +83,7 @@
 .column-card--now .column-card-label { color: var(--color-fg-accent); }
 .column-card-meta time {
   color: var(--color-fg-accent);
-  font-family: var(--font-family-mono);
+  font-family: var(--font-family-display);
   font-size: var(--font-size-50);
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;
@@ -132,7 +132,7 @@
   font-size: var(--font-size-50);
   line-height: var(--line-height-tight);
 }
-.room-column-later time { color: var(--color-fg-accent); font-family: var(--font-family-mono); font-size: var(--font-size-40); font-variant-numeric: tabular-nums; }
+.room-column-later time { color: var(--color-fg-accent); font-family: var(--font-family-display); font-size: var(--font-size-40); font-variant-numeric: tabular-nums; }
 .room-column-later span { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--color-fg-muted); }
 
 .common-message { margin: auto 0; }
