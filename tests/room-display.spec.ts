@@ -643,3 +643,37 @@ test('renders the Cosmos 1 & 2 display on a 1920 by 1080 landscape screen', asyn
   expect(dimensions).toMatchObject({ width: 1920, height: 1080 });
   expect(dimensions.scrollHeight).toBeLessThanOrEqual(1081);
 });
+
+test('lists the shared common-area lunch, but not short shared breaks, in the room agenda', async ({ page }) => {
+  const withSharedBreaks = {
+    ...schedule,
+    rooms: [...schedule.rooms, { id: '50', name: 'Fellesareal' }],
+    sessions: [
+      ...schedule.sessions.filter(({ room, isServiceSession }) => !(room === 'Andromeda' && isServiceSession)),
+      {
+        id: 'shared-break', roomId: '50', room: 'Fellesareal', title: 'Break',
+        startsAt: '2026-10-19T10:45:00', endsAt: '2026-10-19T11:00:00',
+        speakers: [], isServiceSession: true, isPlenumSession: true,
+      },
+      {
+        id: 'shared-lunch', roomId: '50', room: 'Fellesareal', title: 'Lunch',
+        startsAt: '2026-10-19T12:00:00', endsAt: '2026-10-19T13:00:00',
+        speakers: [], isServiceSession: true, isPlenumSession: true,
+      },
+    ],
+  };
+  await page.unroute('**/api/schedule*');
+  await page.route('**/api/schedule*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(withSharedBreaks) }),
+  );
+  await page.goto('/room/42');
+
+  const agenda = page.getByRole('region', { name: /upcoming room agenda/i });
+  await expect(agenda.getByRole('listitem')).toHaveText([
+    /10:20–10:45\s*The next talk starts on the room clock/,
+    new RegExp(`11:00–11:40\\s*${longTalkTitle}`),
+    /12:00–13:00\s*Lunch/,
+    /13:00–13:45\s*The afternoon session/,
+    /16:30–17:00\s*The last Andromeda talk/,
+  ]);
+});
