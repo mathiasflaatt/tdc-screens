@@ -5,6 +5,7 @@ import { CommonDisplay } from './components/CommonDisplay';
 import { SimulationControls } from './components/SimulationControls';
 import { StaleNotice } from './components/kiosk';
 import { RoomDisplay } from './components/RoomDisplay';
+import { ThemeToggle } from './components/ThemeToggle';
 import { simulationHref, useSimulationClock } from './hooks/useSimulationClock';
 import { useSchedule } from './hooks/useSchedule';
 import type { DisplayRoom, ScheduleSnapshot } from './lib/schedule';
@@ -123,4 +124,4 @@ function App() {
     : <UnknownRoom roomId={roomId ?? route[1]} simulation={simulation} />;
 }
 
-createRoot(document.getElementById('root')!).render(<App />);
+createRoot(document.getElementById('root')!).render(<><App /><ThemeToggle /></>);

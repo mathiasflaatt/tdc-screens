@@ -27,12 +27,12 @@
   gap: var(--spacing-8);
   padding: var(--spacing-12);
   border: 1px solid var(--color-border);
-  border-left: var(--spacing-2) solid var(--color-fg-brand);
+  border-left: var(--spacing-2) solid var(--color-fg-soon);
   border-radius: var(--radius-lg);
   background: var(--color-bg-raised);
 }
-.featured-card--live { border-left-color: var(--color-fg-accent); background: var(--color-bg-accent-tint); }
-.featured-card--live .status-pill { background: var(--color-fg-accent); }
+.featured-card--live { border-left-color: var(--color-fg-now); background: var(--color-bg-now-tint); }
+.featured-card--live .status-pill { background: var(--color-fg-now); }
 .featured-meta { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-4); }
 .featured-time {
   color: var(--color-fg-accent);
@@ -115,7 +115,7 @@
 .elsewhere-room { overflow: hidden; color: var(--color-fg-brand); font-family: var(--font-family-display); font-weight: var(--font-weight-bold); text-overflow: ellipsis; white-space: nowrap; }
 .elsewhere-status { color: var(--color-fg-muted); font-family: var(--font-family-mono); font-size: var(--font-size-40); white-space: nowrap; }
 .elsewhere-status--done { grid-column: span 2; }
-.elsewhere-row--live .elsewhere-status { color: var(--color-fg-accent); }
+.elsewhere-row--live .elsewhere-status { color: var(--color-fg-now); }
 .elsewhere-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: var(--line-height-tight); }
 
 /* Landscape room display — 1920×1080 canvas (Cosmos 1 & 2). Featured left, agenda right, elsewhere in columns below. */

@@ -4,6 +4,12 @@
   --color-bg-brand-tint: color-mix(in srgb, var(--color-fg-brand) 11%, var(--color-bg-base));
   --color-bg-accent-tint: color-mix(in srgb, var(--color-fg-accent) 12%, var(--color-bg-base));
   --color-border-brand: color-mix(in srgb, var(--color-fg-brand) 55%, transparent);
+  /* Session status roles: "now" is live, "soon" is next/later. Light mode swaps them. */
+  --color-fg-now: var(--color-fg-accent);
+  --color-fg-soon: var(--color-fg-brand);
+  --color-bg-now-tint: color-mix(in srgb, var(--color-fg-now) 12%, var(--color-bg-base));
+  --color-bg-soon-tint: color-mix(in srgb, var(--color-fg-soon) 11%, var(--color-bg-base));
+  --color-border-soon: color-mix(in srgb, var(--color-fg-soon) 55%, transparent);
 
   /* Kiosk canvas type scale: sized for reading at several metres on 55–65" TVs. */
   --kiosk-text-sm: var(--font-size-60);
@@ -20,6 +26,18 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Live is red (primary) in light mode; tints stay faint so red doesn't read pink. */
+:root[data-theme="light"] {
+  --color-fg-now: var(--color-fg-brand);
+  --color-fg-soon: var(--color-fg-accent);
+  --color-bg-brand-tint: color-mix(in srgb, var(--color-fg-brand) 4%, var(--color-bg-surface));
+  --color-bg-accent-tint: color-mix(in srgb, var(--color-fg-accent) 5%, var(--color-bg-surface));
+  --color-bg-now-tint: color-mix(in srgb, var(--color-fg-now) 4%, var(--color-bg-surface));
+  --color-bg-soon-tint: color-mix(in srgb, var(--color-fg-soon) 5%, var(--color-bg-surface));
+  --color-border-brand: color-mix(in srgb, var(--color-fg-brand) 30%, transparent);
+  --color-border-soon: color-mix(in srgb, var(--color-fg-soon) 30%, transparent);
 }
 
 * { box-sizing: border-box; }
@@ -160,7 +178,7 @@ h1, h2, h3 { font-family: var(--font-family-display); font-weight: var(--font-we
   margin: 0;
   padding: var(--spacing-2) var(--spacing-4);
   border-radius: var(--radius-full);
-  background: var(--color-fg-brand);
+  background: var(--color-fg-soon);
   color: var(--color-fg-always-dark);
   font-family: var(--font-family-display);
   font-size: var(--font-size-50);
@@ -192,3 +210,27 @@ h1, h2, h3 { font-family: var(--font-family-display); font-weight: var(--font-we
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
 }
+
+/* Hidden theme toggle: invisible corner hit area for organisers, visible on keyboard focus. */
+.theme-toggle {
+  position: fixed;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  z-index: 1000;
+  inline-size: 48px;
+  block-size: 48px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-60);
+  transition: opacity var(--duration-fast) var(--ease-default), transform var(--duration-fast) var(--ease-out);
+}
+.theme-toggle::before { content: "◐"; }
+.theme-toggle:hover,
+.theme-toggle:focus-visible { opacity: 1; background: var(--color-bg-surface); }
+.theme-toggle:active { transform: scale(0.88); }
+.theme-toggle:focus-visible { outline: 3px solid var(--color-focus-ring); }
