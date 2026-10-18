@@ -139,7 +139,6 @@ h1, h2, h3 { font-family: var(--font-family-display); font-weight: var(--font-we
   font-family: var(--font-family-display);
   font-size: var(--kiosk-text-2xl);
   font-weight: var(--font-weight-bold);
-  font-variant-numeric: tabular-nums;
   line-height: var(--line-height-none);
 }
 .kiosk-clock-wrap .stale-notice { position: absolute; top: 100%; right: 0; }

@@ -176,3 +176,24 @@
     U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
     U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
+
+/* =====================================================================
+   Digits — Space Grotesk 0-9 only. Prepended to the sans and mono stacks
+   so every number on screen renders in the display font.
+   ===================================================================== */
+@font-face {
+  font-family: "TDC Digits";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../assets/fonts/space-grotesk-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0030-0039;
+}
+@font-face {
+  font-family: "TDC Digits";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../assets/fonts/space-grotesk-latin-700-normal.woff2") format("woff2");
+  unicode-range: U+0030-0039;
+}
