@@ -67,8 +67,19 @@ export type CommonDisplayState = {
 /** Largest rooms first, so the common screens steer people toward the most seats. Matched by normalised name. */
 const ROOM_CAPACITY_ORDER = ['cosmos12', 'aurora', 'livingroom', 'cosmos3ab', 'cosmos3cd', 'andromeda'];
 
+function roomKey(room: DisplayRoom): string {
+  return room.name.toLocaleLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/** Rooms whose door screen is mounted landscape (1920×1080) instead of portrait. */
+const LANDSCAPE_ROOMS = ['cosmos12'];
+
+export function isLandscapeRoom(room: DisplayRoom): boolean {
+  return LANDSCAPE_ROOMS.includes(roomKey(room));
+}
+
 function capacityRank(room: DisplayRoom): number {
-  const rank = ROOM_CAPACITY_ORDER.indexOf(room.name.toLocaleLowerCase().replace(/[^a-z0-9]/g, ''));
+  const rank = ROOM_CAPACITY_ORDER.indexOf(roomKey(room));
   return rank === -1 ? ROOM_CAPACITY_ORDER.length : rank;
 }
 

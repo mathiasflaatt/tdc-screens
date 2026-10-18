@@ -603,3 +603,43 @@ test('scales the fixed portrait canvas uniformly to fill a 4K portrait screen', 
   expect(dimensions.scrollHeight).toBeLessThanOrEqual(1920);
   expect(dimensions.pageScroll).toBeLessThanOrEqual(3840);
 });
+
+test('renders the Cosmos 1 & 2 display on a 1920 by 1080 landscape screen', async ({ page }) => {
+  const withCosmos = {
+    ...schedule,
+    rooms: [...schedule.rooms, { id: '12', name: 'Cosmos 1 & 2' }],
+    sessions: [
+      ...schedule.sessions,
+      {
+        id: 'cosmos12-now', roomId: '12', room: 'Cosmos 1 & 2', title: longTalkTitle,
+        startsAt: '2026-10-19T10:00:00', endsAt: '2026-10-19T10:45:00',
+        speakers: [{ id: 'speaker-8', name: 'Kim Example' }], isServiceSession: false, isPlenumSession: false,
+      },
+      {
+        id: 'cosmos12-next', roomId: '12', room: 'Cosmos 1 & 2', title: 'Later on the big stage',
+        startsAt: '2026-10-19T11:00:00', endsAt: '2026-10-19T11:45:00',
+        speakers: [], isServiceSession: false, isPlenumSession: false,
+      },
+    ],
+  };
+  await page.unroute('**/api/schedule*');
+  await page.route('**/api/schedule*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(withCosmos) }),
+  );
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.goto('/room/12');
+
+  await expect(page.getByRole('heading', { name: 'Cosmos 1 & 2', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: longTalkTitle })).toBeVisible();
+  await expect(page.getByRole('region', { name: /upcoming room agenda/i })).toContainText('Later on the big stage');
+  await expect(page.getByRole('region', { name: 'Elsewhere now' })).toBeVisible();
+
+  const display = page.getByRole('main', { name: 'Cosmos 1 & 2 room display' });
+  const dimensions = await display.evaluate((element) => ({
+    width: element.clientWidth,
+    height: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(dimensions).toMatchObject({ width: 1920, height: 1080 });
+  expect(dimensions.scrollHeight).toBeLessThanOrEqual(1081);
+});
