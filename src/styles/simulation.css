@@ -9,7 +9,7 @@
   border: 2px solid var(--color-border-brand);
   border-radius: var(--radius-lg);
   background: var(--color-bg-surface);
-  box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+  box-shadow: var(--shadow-lg);
   color: var(--color-fg-base);
   font-family: var(--font-family-sans);
   /* Follows the pointer directly; never animate position. */

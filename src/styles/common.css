@@ -69,18 +69,18 @@
   border-radius: var(--radius-md);
   background: var(--color-bg-raised);
 }
-.column-card--now { border-color: var(--color-fg-accent); background: var(--color-bg-accent-tint); }
-.column-card--featured { border-color: var(--color-border-brand); background: var(--color-bg-brand-tint); }
+.column-card--now { border-color: var(--color-fg-now); background: var(--color-bg-now-tint); }
+.column-card--featured { border-color: var(--color-border-soon); background: var(--color-bg-soon-tint); }
 .column-card-meta { display: flex; align-items: baseline; justify-content: space-between; gap: var(--spacing-2); margin: 0; }
 .column-card-label {
-  color: var(--color-fg-brand);
+  color: var(--color-fg-soon);
   font-family: var(--font-family-display);
   font-size: var(--font-size-40);
   font-weight: var(--font-weight-bold);
   letter-spacing: var(--letter-spacing-wide);
   text-transform: uppercase;
 }
-.column-card--now .column-card-label { color: var(--color-fg-accent); }
+.column-card--now .column-card-label { color: var(--color-fg-now); }
 .column-card-meta time {
   color: var(--color-fg-accent);
   font-family: var(--font-family-display);
