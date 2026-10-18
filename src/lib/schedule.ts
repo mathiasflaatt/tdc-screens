@@ -67,8 +67,19 @@ export type CommonDisplayState = {
 /** Largest rooms first, so the common screens steer people toward the most seats. Matched by normalised name. */
 const ROOM_CAPACITY_ORDER = ['cosmos12', 'aurora', 'livingroom', 'cosmos3ab', 'cosmos3cd', 'andromeda'];
 
+function roomKey(room: DisplayRoom): string {
+  return room.name.toLocaleLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/** Rooms whose door screen is mounted landscape (1920×1080) instead of portrait. */
+const LANDSCAPE_ROOMS = ['cosmos12'];
+
+export function isLandscapeRoom(room: DisplayRoom): boolean {
+  return LANDSCAPE_ROOMS.includes(roomKey(room));
+}
+
 function capacityRank(room: DisplayRoom): number {
-  const rank = ROOM_CAPACITY_ORDER.indexOf(room.name.toLocaleLowerCase().replace(/[^a-z0-9]/g, ''));
+  const rank = ROOM_CAPACITY_ORDER.indexOf(roomKey(room));
   return rank === -1 ? ROOM_CAPACITY_ORDER.length : rank;
 }
 
@@ -207,6 +218,9 @@ export function getRoomDisplayState(
 }
 
 /** All remaining sessions in a room on the featured session's day, excluding the featured one. */
+/** Shared breaks at least this long (lunch) show in every room's agenda. */
+const SHARED_BREAK_MIN_MS = 30 * 60_000;
+
 export function getRoomAgenda(
   snapshot: ScheduleSnapshot,
   roomId: string,
@@ -217,13 +231,21 @@ export function getRoomAgenda(
   const dateKey = osloDateKey(featuredStart);
   // Only list what comes after the featured session, never earlier entries such as registration.
   const after = Math.max(now, featuredStart);
-  return timedSessions(snapshot)
-    .filter(({ session, start }) =>
-      session.roomId === roomId &&
-      start > after &&
-      osloDateKey(start) === dateKey &&
-      session.id !== featuredSession?.id,
-    )
+  const upcoming = timedSessions(snapshot).filter(({ session, start }) =>
+    start > after && osloDateKey(start) === dateKey && session.id !== featuredSession?.id,
+  );
+  const own = upcoming.filter(({ session }) => session.roomId === roomId);
+  const ownStarts = new Set(own.map(({ start }) => start));
+  // Big common-area breaks such as lunch apply to every room; short ones would crowd the list.
+  const shared = upcoming.filter(({ session, start, end }) =>
+    session.roomId !== roomId &&
+    session.isPlenumSession &&
+    contextForService(session) !== null &&
+    end - start >= SHARED_BREAK_MIN_MS &&
+    !ownStarts.has(start),
+  );
+  return [...own, ...shared]
+    .sort((left, right) => left.start - right.start)
     .map(({ session }) => session);
 }
 

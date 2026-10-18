@@ -5,6 +5,7 @@ import {
   getCommonDisplayState,
   getRoomAgenda,
   getRoomDisplayState,
+  isLandscapeRoom,
   type CommonRoomDisplay,
   type DisplayRoom,
   type DisplaySession,
@@ -16,7 +17,7 @@ import { DuckActor } from './duck/DuckActor';
 import { IdleDuck } from './duck/IdleDuck';
 import { useDuckTransition } from './duck/useDuckTransition';
 import { idleBreakFor, useIdleDuck } from './duck/useIdleDuck';
-import { KioskCanvas, KioskHeader, ROOM_CANVAS, SpeakerList } from './kiosk';
+import { COMMON_CANVAS, KioskCanvas, KioskHeader, ROOM_CANVAS, SpeakerList } from './kiosk';
 import { SimulationControls } from './SimulationControls';
 import type { SimulationClock } from '../hooks/useSimulationClock';
 
@@ -160,11 +161,17 @@ export function RoomDisplay({ snapshot, room, stale, simulation }: RoomDisplayPr
   // Until the duck swaps the cards, keep showing the room as it was just before the boundary.
   const shown = duckRun?.stage === 'outgoing' ? duckRun.outgoing : { display, now };
   const elsewhere = getCommonDisplayState(snapshot, now).rooms.filter((other) => other.room.id !== room.id);
+  const landscape = isLandscapeRoom(room);
 
   return (
-    <KioskCanvas {...ROOM_CANVAS} className="display-page room-canvas" label={`${room.name} room display`}>
-      <KioskHeader now={now} stale={stale} />
-      <h1 className="room-name">{room.name}</h1>
+    <KioskCanvas
+      {...(landscape ? COMMON_CANVAS : ROOM_CANVAS)}
+      className={`display-page room-canvas${landscape ? ' room-canvas--landscape' : ''}`}
+      label={`${room.name} room display`}
+    >
+      {/* Landscape has no spare row, so the room name moves into the header. */}
+      <KioskHeader title={landscape ? room.name : undefined} now={now} stale={stale} />
+      {!landscape && <h1 className="room-name">{room.name}</h1>}
       <section
         ref={stageRef}
         className="room-body"

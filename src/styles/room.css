@@ -1,4 +1,4 @@
-/* Portrait room display — 1080×1920 canvas. */
+/* Room display — portrait 1080×1920 by default; landscape overrides at the end. */
 /* Room name sits just under the header rule; the negative margin pulls it closer than the canvas gap. */
 .room-name {
   margin: calc(var(--spacing-8) * -1 + var(--spacing-4)) 0 0;
@@ -117,3 +117,17 @@
 .elsewhere-status--done { grid-column: span 2; }
 .elsewhere-row--live .elsewhere-status { color: var(--color-fg-accent); }
 .elsewhere-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: var(--line-height-tight); }
+
+/* Landscape room display — 1920×1080 canvas (Cosmos 1 & 2). Featured left, agenda right, elsewhere in columns below. */
+.room-canvas--landscape .kiosk-header { padding-bottom: var(--spacing-6); }
+.room-canvas--landscape .kiosk-header .tdc-wordmark { --wordmark-size: 3.5rem; }
+.room-canvas--landscape .kiosk-title { color: var(--color-fg-accent); font-family: var(--font-family-mono); }
+.room-canvas--landscape .room-body { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: var(--spacing-12); }
+.room-canvas--landscape .featured-card { gap: var(--spacing-6); padding: var(--spacing-10); }
+.room-canvas--landscape .featured-title { font-size: var(--kiosk-text-2xl); }
+.room-canvas--landscape .room-agenda { grid-column: 2; align-self: start; padding-left: var(--spacing-10); border-left: 1px solid var(--color-border); }
+.room-canvas--landscape .agenda-row { grid-template-columns: 9.5rem minmax(0, 1fr); }
+.room-canvas--landscape .elsewhere ul { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--spacing-4) var(--spacing-10); }
+.room-canvas--landscape .elsewhere-row { grid-template-columns: auto minmax(0, 1fr); gap: var(--spacing-1) var(--spacing-4); font-size: var(--font-size-40); }
+.room-canvas--landscape .elsewhere-title { grid-column: 1 / -1; -webkit-line-clamp: 1; color: var(--color-fg-muted); }
+.room-canvas--landscape .elsewhere-status--done { grid-column: auto; }
