@@ -30,6 +30,14 @@ const STATUS_LABEL: Record<SessionPhase, string> = {
   between: 'Between sessions',
 };
 
+/** `?layout=landscape|portrait` overrides the room's default orientation; anything else keeps the default. */
+function landscapeFor(room: DisplayRoom): boolean {
+  const layout = new URLSearchParams(window.location.search).get('layout');
+  if (layout === 'landscape') return true;
+  if (layout === 'portrait') return false;
+  return isLandscapeRoom(room);
+}
+
 /** Above this many agenda rows, rows switch to a compact single-line layout. */
 const COMPACT_AGENDA_ROWS = 6;
 
@@ -161,7 +169,7 @@ export function RoomDisplay({ snapshot, room, stale, simulation }: RoomDisplayPr
   // Until the duck swaps the cards, keep showing the room as it was just before the boundary.
   const shown = duckRun?.stage === 'outgoing' ? duckRun.outgoing : { display, now };
   const elsewhere = getCommonDisplayState(snapshot, now).rooms.filter((other) => other.room.id !== room.id);
-  const landscape = isLandscapeRoom(room);
+  const landscape = landscapeFor(room);
 
   return (
     <KioskCanvas
