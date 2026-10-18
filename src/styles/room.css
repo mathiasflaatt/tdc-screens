@@ -3,7 +3,7 @@
 .room-name {
   margin: calc(var(--spacing-8) * -1 + var(--spacing-4)) 0 0;
   color: var(--color-fg-accent);
-  font-family: var(--font-family-mono);
+  font-family: var(--font-family-display);
   font-size: var(--kiosk-text-lg);
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.02em;
@@ -36,7 +36,7 @@
 .featured-meta { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-4); }
 .featured-time {
   color: var(--color-fg-accent);
-  font-family: var(--font-family-mono);
+  font-family: var(--font-family-display);
   font-size: var(--kiosk-text-lg);
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;
@@ -86,7 +86,7 @@
 }
 .agenda-row time {
   color: var(--color-fg-accent);
-  font-family: var(--font-family-mono);
+  font-family: var(--font-family-display);
   font-size: var(--kiosk-text-sm);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -113,7 +113,7 @@
   font-size: var(--font-size-50);
 }
 .elsewhere-room { overflow: hidden; color: var(--color-fg-brand); font-family: var(--font-family-display); font-weight: var(--font-weight-bold); text-overflow: ellipsis; white-space: nowrap; }
-.elsewhere-status { color: var(--color-fg-muted); font-family: var(--font-family-mono); font-size: var(--font-size-40); white-space: nowrap; }
+.elsewhere-status { color: var(--color-fg-muted); font-family: var(--font-family-display); font-size: var(--font-size-40); white-space: nowrap; }
 .elsewhere-status--done { grid-column: span 2; }
 .elsewhere-row--live .elsewhere-status { color: var(--color-fg-accent); }
 .elsewhere-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: var(--line-height-tight); }
@@ -121,7 +121,7 @@
 /* Landscape room display — 1920×1080 canvas (Cosmos 1 & 2). Featured left, agenda right, elsewhere in columns below. */
 .room-canvas--landscape .kiosk-header { padding-bottom: var(--spacing-6); }
 .room-canvas--landscape .kiosk-header .tdc-wordmark { --wordmark-size: 3.5rem; }
-.room-canvas--landscape .kiosk-title { color: var(--color-fg-accent); font-family: var(--font-family-mono); }
+.room-canvas--landscape .kiosk-title { color: var(--color-fg-accent); font-family: var(--font-family-display); }
 .room-canvas--landscape .room-body { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: var(--spacing-12); }
 .room-canvas--landscape .featured-card { gap: var(--spacing-6); padding: var(--spacing-10); }
 .room-canvas--landscape .featured-title { font-size: var(--kiosk-text-2xl); }

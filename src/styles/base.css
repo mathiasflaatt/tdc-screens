@@ -136,7 +136,7 @@ h1, h2, h3 { font-family: var(--font-family-display); font-weight: var(--font-we
 .kiosk-clock-wrap { position: relative; display: flex; flex-direction: column; align-items: end; }
 .kiosk-clock {
   color: var(--color-fg-brand);
-  font-family: var(--font-family-mono);
+  font-family: var(--font-family-display);
   font-size: var(--kiosk-text-2xl);
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;

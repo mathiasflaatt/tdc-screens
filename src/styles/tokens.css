@@ -53,8 +53,8 @@
   /* ---------------------------------------------------------------
      PRIMITIVE — typography
      --------------------------------------------------------------- */
-  --font-family-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-family-mono: "Space Mono", ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --font-family-sans: "TDC Digits", "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-family-mono: "TDC Digits", "Space Mono", ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   /* Display = Space Grotesk per Figma design system v7.0 (docs/design.md).
      Drives headings, hero and nav; falls back to the sans stack. */
   --font-family-display: "Space Grotesk", var(--font-family-sans);
